@@ -1,0 +1,442 @@
+{
+  "name": "arthouse-ops",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "n01-manual-trigger",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -420,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "daysInterval": 1,
+              "triggerAtHour": 8,
+              "triggerAtMinute": 0
+            }
+          ]
+        }
+      },
+      "id": "n02-schedule-trigger",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -420,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a0",
+              "name": "vfb_export_url",
+              "value": "={{ $env.VFB_EXPORT_URL || 'https://arthousestudioca.org/wp-admin/admin.php?page=vfb-pro-export' }}",
+              "type": "string"
+            },
+            {
+              "id": "a1",
+              "name": "wp_username",
+              "value": "={{ $env.WP_USERNAME || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "a2",
+              "name": "google_sheet_id",
+              "value": "={{ $env.GOOGLE_SHEET_ID || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "a3",
+              "name": "tab_aggregates",
+              "value": "={{ $env.GOOGLE_SHEET_TAB_AGGREGATES || 'aggregates' }}",
+              "type": "string"
+            },
+            {
+              "id": "a4",
+              "name": "tab_leads",
+              "value": "={{ $env.GOOGLE_SHEET_TAB_LEADS || 'leads' }}",
+              "type": "string"
+            },
+            {
+              "id": "a5",
+              "name": "tab_errors",
+              "value": "={{ $env.GOOGLE_SHEET_TAB_ERRORS || 'errors' }}",
+              "type": "string"
+            },
+            {
+              "id": "a6",
+              "name": "registration_form_id",
+              "value": "={{ $env.REGISTRATION_FORM_ID || '2' }}",
+              "type": "string"
+            },
+            {
+              "id": "a7",
+              "name": "contact_us_form_id",
+              "value": "={{ $env.CONTACT_US_FORM_ID || '3' }}",
+              "type": "string"
+            },
+            {
+              "id": "a8",
+              "name": "category_list",
+              "value": "={{ $env.CATEGORY_LIST || 'sponsor,school,volunteer,general,spam' }}",
+              "type": "string"
+            },
+            {
+              "id": "a9",
+              "name": "sentiment_list",
+              "value": "={{ $env.SENTIMENT_LIST || 'positive,neutral,urgent' }}",
+              "type": "string"
+            },
+            {
+              "id": "a10",
+              "name": "llm_provider",
+              "value": "={{ $env.LLM_PROVIDER || 'anthropic' }}",
+              "type": "string"
+            },
+            {
+              "id": "a11",
+              "name": "llm_model",
+              "value": "={{ $env.LLM_MODEL || 'claude-haiku-4-5-20251001' }}",
+              "type": "string"
+            },
+            {
+              "id": "a12",
+              "name": "looker_dashboard_url",
+              "value": "={{ $env.LOOKER_DASHBOARD_URL || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "a13",
+              "name": "weekly_summary_recipient",
+              "value": "={{ $env.WEEKLY_SUMMARY_RECIPIENT || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "a14",
+              "name": "backfill_mode",
+              "value": "={{ ($env.BACKFILL_MODE || 'true') === 'true' }}",
+              "type": "boolean"
+            },
+            {
+              "id": "a15",
+              "name": "reg_start_date",
+              "value": "={{ (($env.BACKFILL_MODE || 'true') === 'true') ? '2000-01-01' : $now.minus({ days: 400 }).toFormat('yyyy-MM-dd') }}",
+              "type": "string"
+            },
+            {
+              "id": "a16",
+              "name": "contact_start_date",
+              "value": "={{ (($env.BACKFILL_MODE || 'true') === 'true') ? '2000-01-01' : $now.minus({ days: 30 }).toFormat('yyyy-MM-dd') }}",
+              "type": "string"
+            },
+            {
+              "id": "a17",
+              "name": "end_date",
+              "value": "={{ $now.toFormat('yyyy-MM-dd') }}",
+              "type": "string"
+            },
+            {
+              "id": "a18",
+              "name": "run_weekday",
+              "value": "={{ $now.weekday }}",
+              "type": "number"
+            }
+          ]
+        },
+        "includeOtherFields": false,
+        "options": {}
+      },
+      "id": "n03-config",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -180,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').item.json.vfb_export_url }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "vfb-export-form",
+              "value": "={{ $('Config').item.json.registration_form_id }}"
+            },
+            {
+              "name": "vfb-export-format",
+              "value": "csv"
+            },
+            {
+              "name": "vfb-export-content",
+              "value": "all"
+            },
+            {
+              "name": "vfb-export-date-start",
+              "value": "={{ $('Config').item.json.reg_start_date }}"
+            },
+            {
+              "name": "vfb-export-date-end",
+              "value": "={{ $('Config').item.json.end_date }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "id": "n04-fetch-registration-csv",
+      "name": "Fetch Registration CSV",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        80,
+        -140
+      ],
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "arthouseWpBasicAuth",
+          "name": "ArtHouse WordPress Basic Auth"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse Registration CSV\n// Reads the CSV text returned by the \"Fetch Registration CSV\" HTTP node and\n// turns it into one item per row. Handles VFB Pro quirks: quoted multi-line\n// fields, embedded HTML in column labels, and trailing whitespace in headers.\n\nconst input = $input.all();\nconst raw = input.length ? String(input[0].json.data || input[0].json.body || input[0].json.text || '') : '';\n\nfunction parseCSV(text) {\n  const rows = [];\n  let field = '';\n  let row = [];\n  let inQuotes = false;\n  for (let i = 0; i < text.length; i++) {\n    const ch = text[i];\n    if (inQuotes) {\n      if (ch === '\"') {\n        if (text[i + 1] === '\"') { field += '\"'; i++; }\n        else { inQuotes = false; }\n      } else {\n        field += ch;\n      }\n    } else {\n      if (ch === '\"') { inQuotes = true; }\n      else if (ch === ',') { row.push(field); field = ''; }\n      else if (ch === '\\r') { /* ignore, handled on \\n */ }\n      else if (ch === '\\n') { row.push(field); rows.push(row); row = []; field = ''; }\n      else { field += ch; }\n    }\n  }\n  if (field.length > 0 || row.length > 0) { row.push(field); rows.push(row); }\n  return rows;\n}\n\nfunction cleanHeader(h) {\n  return String(h)\n    .replace(/<[^>]*>/g, ' ')\n    .replace(/&nbsp;/gi, ' ')\n    .replace(/&amp;/gi, '&')\n    .replace(/\\s+/g, ' ')\n    .trim();\n}\n\nconst grid = parseCSV(raw);\nif (grid.length === 0) {\n  return [];\n}\nconst headers = grid[0].map(cleanHeader);\nconst out = [];\nfor (let r = 1; r < grid.length; r++) {\n  const cells = grid[r];\n  if (cells.length === 1 && String(cells[0]).trim() === '') { continue; }\n  const obj = {};\n  for (let c = 0; c < headers.length; c++) {\n    obj[headers[c]] = cells[c] !== undefined ? String(cells[c]).trim() : '';\n  }\n  out.push({ json: obj });\n}\nreturn out;\n"
+      },
+      "id": "n05-parse-registration-csv",
+      "name": "Parse Registration CSV",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        300,
+        -140
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Strip PII from Registration\n// HARD PRIVACY BOUNDARY. Sensitive student fields are dropped here and never\n// pass downstream. Only the whitelisted follow-up fields are emitted, mapped to\n// the shared leads-tab schema. Missing expected columns are logged, not\n// silently ignored.\n\nconst items = $input.all();\n\n// Header substrings that identify fields we must DROP entirely.\nconst DROP_PATTERNS = [\n  'student', 'date of birth', 'birth', 'address', 'allerg', 'medical',\n  'authorized to pick', 'other adults', 'emergency contact'\n];\n\nfunction norm(s) {\n  return String(s).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();\n}\n\nfunction isDropped(header) {\n  const h = norm(header);\n  return DROP_PATTERNS.some((p) => h.indexOf(norm(p)) !== -1);\n}\n\n// Find the value of the first column whose normalized header contains ALL of\n// the given words. Dropped columns are never eligible.\nfunction pick(obj, wordSets) {\n  const keys = Object.keys(obj);\n  for (const words of wordSets) {\n    for (const k of keys) {\n      if (isDropped(k)) { continue; }\n      const nk = norm(k);\n      if (words.every((w) => nk.indexOf(norm(w)) !== -1)) {\n        return String(obj[k]).trim();\n      }\n    }\n  }\n  return '';\n}\n\nfunction parseCurrency(v) {\n  if (v === undefined || v === null) { return 0; }\n  const cleaned = String(v).replace(/[$,\\s]/g, '');\n  const n = parseFloat(cleaned);\n  return isNaN(n) ? 0 : n;\n}\n\nconst out = [];\nlet missingWarned = false;\n\nfor (const item of items) {\n  const row = item.json || {};\n\n  const entry_id = pick(row, [['entry', 'id'], ['id']]);\n  const entry_date = pick(row, [['entry', 'date'], ['date', 'submitted'], ['date']]);\n  const name = pick(row, [['parent', 'name'], ['guardian', 'name'], ['guardian'], ['parent']]);\n  const email = pick(row, [['parent', 'email'], ['guardian', 'email'], ['email']]);\n  const school = pick(row, [['school', 'name'], ['school']]);\n  const grade = pick(row, [['grade']]);\n  const homeroom_teacher = pick(row, [['homeroom'], ['teacher']]);\n  const amount_usd = parseCurrency(pick(row, [['register', 'pay'], ['amount'], ['pay']]));\n\n  // Never emit a dropped field even by accident: build a fresh object.\n  const lead = {\n    entry_id: entry_id,\n    entry_date: entry_date,\n    source: 'registration',\n    name: name,\n    email: email,\n    school: school,\n    grade: grade,\n    homeroom_teacher: homeroom_teacher,\n    amount_usd: amount_usd,\n    category: '',\n    sentiment: '',\n    summary: ''\n  };\n\n  if (!missingWarned) {\n    const missing = [];\n    if (!entry_id) { missing.push('Entry ID'); }\n    if (!name) { missing.push('Parent/Guardian Name'); }\n    if (!email) { missing.push('Parent Email'); }\n    if (missing.length > 0) {\n      console.warn('Registration schema warning: expected columns not found: ' + missing.join(', ') + '. The VFB Pro export layout may have changed.');\n      missingWarned = true;\n    }\n  }\n\n  out.push({ json: lead });\n}\n\nreturn out;\n"
+      },
+      "id": "n06-strip-pii-from-registration",
+      "name": "Strip PII from Registration",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        520,
+        -140
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Aggregate Registration\n// Groups the PII-stripped rows by month (YYYY-MM of Entry Date) and by school,\n// then counts enrollments and sums revenue. Emits one row per group in the\n// shared aggregates-tab schema.\n\nconst items = $input.all();\n\nfunction monthKey(dateStr) {\n  const s = String(dateStr || '').trim();\n  // Fast path for ISO-like values (2024-05-01 ...).\n  const iso = s.match(/^(\\d{4})-(\\d{2})/);\n  if (iso) { return iso[1] + '-' + iso[2]; }\n  const d = new Date(s);\n  if (!isNaN(d.getTime())) {\n    const m = String(d.getMonth() + 1).padStart(2, '0');\n    return d.getFullYear() + '-' + m;\n  }\n  return 'unknown';\n}\n\nconst groups = {};\nfor (const item of items) {\n  const row = item.json || {};\n  const dk = monthKey(row.entry_date);\n  const school = String(row.school || '').trim() || 'unknown';\n  const key = dk + '||' + school;\n  if (!groups[key]) {\n    groups[key] = { date_key: dk, school: school, enrollment_count: 0, revenue_usd: 0 };\n  }\n  groups[key].enrollment_count += 1;\n  const amt = Number(row.amount_usd);\n  groups[key].revenue_usd += isNaN(amt) ? 0 : amt;\n}\n\nconst out = [];\nfor (const key of Object.keys(groups)) {\n  const g = groups[key];\n  out.push({\n    json: {\n      date_key: g.date_key,\n      source: 'registration',\n      school: g.school,\n      enrollment_count: g.enrollment_count,\n      revenue_usd: Math.round(g.revenue_usd * 100) / 100,\n      message_count: '',\n      category: '',\n      sentiment: ''\n    }\n  });\n}\n\nreturn out;\n"
+      },
+      "id": "n07-aggregate-registration",
+      "name": "Aggregate Registration",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        760,
+        -220
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Config').item.json.google_sheet_id }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "={{ $('Config').item.json.tab_aggregates }}",
+          "cachedResultName": "={{ $('Config').item.json.tab_aggregates }}"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "n08-append-registration-aggregates",
+      "name": "Append Registration Aggregates",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        980,
+        -220
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "arthouseGoogleSheets",
+          "name": "ArtHouse Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Config').item.json.google_sheet_id }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "={{ $('Config').item.json.tab_leads }}",
+          "cachedResultName": "={{ $('Config').item.json.tab_leads }}"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "n09-append-registration-leads",
+      "name": "Append Registration Leads",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        760,
+        -40
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "arthouseGoogleSheets",
+          "name": "ArtHouse Google Sheets"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Fetch Registration CSV",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Registration CSV": {
+      "main": [
+        [
+          {
+            "node": "Parse Registration CSV",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Registration CSV": {
+      "main": [
+        [
+          {
+            "node": "Strip PII from Registration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Strip PII from Registration": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Registration",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Append Registration Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate Registration": {
+      "main": [
+        [
+          {
+            "node": "Append Registration Aggregates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Los_Angeles",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "id": "arthouseOpsMain",
+  "meta": {
+    "instanceId": "arthouse-ops"
+  },
+  "tags": []
+}
