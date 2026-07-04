@@ -614,6 +614,78 @@
           "name": "ArtHouse Google Sheets"
         }
       }
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Config').item.json.google_sheet_id }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "={{ $('Config').item.json.tab_leads }}",
+          "cachedResultName": "={{ $('Config').item.json.tab_leads }}"
+        },
+        "options": {}
+      },
+      "id": "n19-read-recent-leads",
+      "name": "Read Recent Leads",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        80,
+        540
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "arthouseGoogleSheets",
+          "name": "ArtHouse Google Sheets"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build Weekly Summary\n// Runs only on Mondays. Reads the recent leads, filters to the last 7 days, and\n// composes a compact HTML email. If today is not Monday it returns no items, so\n// the Gmail node downstream simply does not send.\n\nconst cfg = $('Config').first().json;\nconst now = new Date();\n\n// Monday is 1 in both luxon (Config.run_weekday) and JS getDay(). Prefer the\n// Config value, fall back to the local clock.\nconst weekday = Number(cfg.run_weekday) || now.getDay();\nif (weekday !== 1) {\n  return [];\n}\n\nconst items = $input.all();\n\nconst msPerDay = 24 * 60 * 60 * 1000;\nconst cutoff = new Date(now.getTime() - 7 * msPerDay);\n\nfunction toDate(s) {\n  const str = String(s || '').trim();\n  const d = new Date(str);\n  return isNaN(d.getTime()) ? null : d;\n}\n\nfunction fmt(d) {\n  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');\n}\n\nlet regCount = 0;\nlet contactCount = 0;\nlet revenue = 0;\nconst catCounts = { sponsor: 0, school: 0, volunteer: 0, general: 0, spam: 0 };\nconst urgent = [];\n\nfor (const item of items) {\n  const row = item.json || {};\n  const d = toDate(row.entry_date);\n  if (!d || d < cutoff) { continue; }\n  const source = String(row.source || '').trim();\n  if (source === 'registration') {\n    regCount += 1;\n    const amt = parseFloat(String(row.amount_usd).replace(/[$,\\s]/g, ''));\n    if (!isNaN(amt)) { revenue += amt; }\n  } else if (source === 'contact_us') {\n    contactCount += 1;\n    const cat = String(row.category || 'general').trim();\n    if (catCounts[cat] !== undefined) { catCounts[cat] += 1; }\n    if (String(row.sentiment || '').trim() === 'urgent') {\n      urgent.push({ name: row.name || '(no name)', email: row.email || '(no email)', summary: row.summary || '' });\n    }\n  }\n}\n\nconst total = regCount + contactCount;\nconst rangeStart = fmt(cutoff);\nconst rangeEnd = fmt(now);\nconst looker = String(cfg.looker_dashboard_url || '').trim();\n\nlet urgentHtml = '<p style=\"margin:6px 0;color:#666;\">No urgent messages this week.</p>';\nif (urgent.length > 0) {\n  urgentHtml = '<ul style=\"margin:6px 0 6px 18px;padding:0;\">' + urgent.map(function (u) {\n    return '<li style=\"margin:2px 0;\"><strong>' + u.name + '</strong> (' + u.email + '): ' + u.summary + '</li>';\n  }).join('') + '</ul>';\n}\n\nconst html =\n  '<div style=\"font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#222;max-width:600px;\">' +\n  '<h2 style=\"margin:0 0 4px;\">ArtHouse weekly summary</h2>' +\n  '<p style=\"margin:0 0 12px;color:#666;\">' + rangeStart + ' to ' + rangeEnd + '</p>' +\n  '<p style=\"margin:6px 0;\"><strong>' + total + '</strong> new form entries this week (' + regCount + ' registration, ' + contactCount + ' contact us).</p>' +\n  '<p style=\"margin:6px 0;\"><strong>Revenue this week:</strong> $' + (Math.round(revenue * 100) / 100).toFixed(2) + '</p>' +\n  '<p style=\"margin:12px 0 4px;\"><strong>Contact Us by category</strong></p>' +\n  '<p style=\"margin:0 0 6px;\">sponsor: ' + catCounts.sponsor + ', school: ' + catCounts.school + ', volunteer: ' + catCounts.volunteer + ', general: ' + catCounts.general + ', spam: ' + catCounts.spam + '</p>' +\n  '<p style=\"margin:12px 0 4px;\"><strong>Urgent messages</strong></p>' +\n  urgentHtml +\n  (looker ? '<p style=\"margin:14px 0 0;\"><a href=\"' + looker + '\">Open the Looker Studio dashboard</a></p>' : '') +\n  '</div>';\n\nconst subject = 'ArtHouse weekly summary, ' + rangeStart + ' to ' + rangeEnd;\n\nreturn [{\n  json: {\n    to: String(cfg.weekly_summary_recipient || '').trim(),\n    subject: subject,\n    html: html,\n    total_entries: total\n  }\n}];\n"
+      },
+      "id": "n20-build-weekly-summary",
+      "name": "Build Weekly Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        300,
+        540
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.to }}",
+        "subject": "={{ $json.subject }}",
+        "emailType": "html",
+        "message": "={{ $json.html }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "n21-send-weekly-summary",
+      "name": "Send Weekly Summary",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        520,
+        540
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "arthouseGmail",
+          "name": "ArtHouse Gmail"
+        }
+      },
+      "onError": "continueRegularOutput"
     }
   ],
   "connections": {
@@ -649,6 +721,11 @@
           },
           {
             "node": "Fetch Contact Us CSV",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Read Recent Leads",
             "type": "main",
             "index": 0
           }
@@ -785,6 +862,28 @@
           }
         ]
       ]
+    },
+    "Read Recent Leads": {
+      "main": [
+        [
+          {
+            "node": "Build Weekly Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Weekly Summary": {
+      "main": [
+        [
+          {
+            "node": "Send Weekly Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "active": false,
@@ -792,7 +891,8 @@
     "executionOrder": "v1",
     "timezone": "America/Los_Angeles",
     "saveManualExecutions": true,
-    "callerPolicy": "workflowsFromSameOwner"
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": "arthouseOpsErrors"
   },
   "id": "arthouseOpsMain",
   "meta": {
