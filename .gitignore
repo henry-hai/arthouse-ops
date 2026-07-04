@@ -1,0 +1,17 @@
+# Secrets: the real environment file is never committed. Only .env.example is tracked.
+.env
+.env.*
+!.env.example
+
+# n8n local data folder if the volume is ever bind-mounted for debugging
+n8n-data/
+.n8n/
+
+# Generated outputs
+outputs/
+
+# Node
+node_modules/
+
+# macOS
+.DS_Store
