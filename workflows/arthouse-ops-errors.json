@@ -1,0 +1,102 @@
+{
+  "name": "arthouse-ops-errors",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "e1-error-trigger",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        -160,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Format Error Row\n// Turns the Error Trigger payload into a single row for the errors tab.\n\nconst data = $json || {};\nconst execution = data.execution || {};\nconst workflow = data.workflow || {};\nconst err = execution.error || data.error || {};\n\nconst nodeName = execution.lastNodeExecuted || (err.node && err.node.name) || 'unknown';\nconst message = err.message || err.description || 'Unknown error';\nconst runId = execution.id || data.id || '';\n\nreturn [{\n  json: {\n    timestamp: new Date().toISOString(),\n    node_name: String(nodeName),\n    error_message: String(message).replace(/\\s+/g, ' ').slice(0, 500),\n    workflow_run_id: String(runId)\n  }\n}];\n"
+      },
+      "id": "e2-format-error-row",
+      "name": "Format Error Row",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        80,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.GOOGLE_SHEET_ID }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "={{ $env.GOOGLE_SHEET_TAB_ERRORS || 'errors' }}",
+          "cachedResultName": "={{ $env.GOOGLE_SHEET_TAB_ERRORS || 'errors' }}"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "e3-append-error",
+      "name": "Append Error",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        320,
+        200
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "arthouseGoogleSheets",
+          "name": "ArtHouse Google Sheets"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Format Error Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Error Row": {
+      "main": [
+        [
+          {
+            "node": "Append Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Los_Angeles"
+  },
+  "id": "arthouseOpsErrors",
+  "meta": {
+    "instanceId": "arthouse-ops"
+  },
+  "tags": []
+}

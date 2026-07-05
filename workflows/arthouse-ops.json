@@ -1,0 +1,902 @@
+{
+  "name": "arthouse-ops",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "n01-manual-trigger",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -420,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "daysInterval": 1,
+              "triggerAtHour": 8,
+              "triggerAtMinute": 0
+            }
+          ]
+        }
+      },
+      "id": "n02-schedule-trigger",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -420,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a0",
+              "name": "vfb_export_url",
+              "value": "={{ $env.VFB_EXPORT_URL || 'https://arthousestudioca.org/wp-admin/admin.php?page=vfb-pro-export' }}",
+              "type": "string"
+            },
+            {
+              "id": "a1",
+              "name": "wp_username",
+              "value": "={{ $env.WP_USERNAME || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "a2",
+              "name": "google_sheet_id",
+              "value": "={{ $env.GOOGLE_SHEET_ID || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "a3",
+              "name": "tab_aggregates",
+              "value": "={{ $env.GOOGLE_SHEET_TAB_AGGREGATES || 'aggregates' }}",
+              "type": "string"
+            },
+            {
+              "id": "a4",
+              "name": "tab_leads",
+              "value": "={{ $env.GOOGLE_SHEET_TAB_LEADS || 'leads' }}",
+              "type": "string"
+            },
+            {
+              "id": "a5",
+              "name": "tab_errors",
+              "value": "={{ $env.GOOGLE_SHEET_TAB_ERRORS || 'errors' }}",
+              "type": "string"
+            },
+            {
+              "id": "a6",
+              "name": "registration_form_id",
+              "value": "={{ $env.REGISTRATION_FORM_ID || '2' }}",
+              "type": "string"
+            },
+            {
+              "id": "a7",
+              "name": "contact_us_form_id",
+              "value": "={{ $env.CONTACT_US_FORM_ID || '3' }}",
+              "type": "string"
+            },
+            {
+              "id": "a8",
+              "name": "category_list",
+              "value": "={{ $env.CATEGORY_LIST || 'sponsor,school,volunteer,general,spam' }}",
+              "type": "string"
+            },
+            {
+              "id": "a9",
+              "name": "sentiment_list",
+              "value": "={{ $env.SENTIMENT_LIST || 'positive,neutral,urgent' }}",
+              "type": "string"
+            },
+            {
+              "id": "a10",
+              "name": "llm_provider",
+              "value": "={{ $env.LLM_PROVIDER || 'anthropic' }}",
+              "type": "string"
+            },
+            {
+              "id": "a11",
+              "name": "llm_model",
+              "value": "={{ $env.LLM_MODEL || 'claude-haiku-4-5-20251001' }}",
+              "type": "string"
+            },
+            {
+              "id": "a12",
+              "name": "looker_dashboard_url",
+              "value": "={{ $env.LOOKER_DASHBOARD_URL || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "a13",
+              "name": "weekly_summary_recipient",
+              "value": "={{ $env.WEEKLY_SUMMARY_RECIPIENT || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "a14",
+              "name": "backfill_mode",
+              "value": "={{ ($env.BACKFILL_MODE || 'true') === 'true' }}",
+              "type": "boolean"
+            },
+            {
+              "id": "a15",
+              "name": "reg_start_date",
+              "value": "={{ (($env.BACKFILL_MODE || 'true') === 'true') ? '2000-01-01' : $now.minus({ days: 400 }).toFormat('yyyy-MM-dd') }}",
+              "type": "string"
+            },
+            {
+              "id": "a16",
+              "name": "contact_start_date",
+              "value": "={{ (($env.BACKFILL_MODE || 'true') === 'true') ? '2000-01-01' : $now.minus({ days: 30 }).toFormat('yyyy-MM-dd') }}",
+              "type": "string"
+            },
+            {
+              "id": "a17",
+              "name": "end_date",
+              "value": "={{ $now.toFormat('yyyy-MM-dd') }}",
+              "type": "string"
+            },
+            {
+              "id": "a18",
+              "name": "run_weekday",
+              "value": "={{ $now.weekday }}",
+              "type": "number"
+            }
+          ]
+        },
+        "includeOtherFields": false,
+        "options": {}
+      },
+      "id": "n03-config",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -180,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').item.json.vfb_export_url }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "vfb-export-form",
+              "value": "={{ $('Config').item.json.registration_form_id }}"
+            },
+            {
+              "name": "vfb-export-format",
+              "value": "csv"
+            },
+            {
+              "name": "vfb-export-content",
+              "value": "all"
+            },
+            {
+              "name": "vfb-export-date-start",
+              "value": "={{ $('Config').item.json.reg_start_date }}"
+            },
+            {
+              "name": "vfb-export-date-end",
+              "value": "={{ $('Config').item.json.end_date }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "id": "n04-fetch-registration-csv",
+      "name": "Fetch Registration CSV",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        80,
+        -140
+      ],
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "arthouseWpBasicAuth",
+          "name": "ArtHouse WordPress Basic Auth"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse Registration CSV\n// Reads the CSV text returned by the \"Fetch Registration CSV\" HTTP node and\n// turns it into one item per row. Handles VFB Pro quirks: quoted multi-line\n// fields, embedded HTML in column labels, and trailing whitespace in headers.\n\nconst input = $input.all();\nconst raw = input.length ? String(input[0].json.data || input[0].json.body || input[0].json.text || '') : '';\n\nfunction parseCSV(text) {\n  const rows = [];\n  let field = '';\n  let row = [];\n  let inQuotes = false;\n  for (let i = 0; i < text.length; i++) {\n    const ch = text[i];\n    if (inQuotes) {\n      if (ch === '\"') {\n        if (text[i + 1] === '\"') { field += '\"'; i++; }\n        else { inQuotes = false; }\n      } else {\n        field += ch;\n      }\n    } else {\n      if (ch === '\"') { inQuotes = true; }\n      else if (ch === ',') { row.push(field); field = ''; }\n      else if (ch === '\\r') { /* ignore, handled on \\n */ }\n      else if (ch === '\\n') { row.push(field); rows.push(row); row = []; field = ''; }\n      else { field += ch; }\n    }\n  }\n  if (field.length > 0 || row.length > 0) { row.push(field); rows.push(row); }\n  return rows;\n}\n\nfunction cleanHeader(h) {\n  return String(h)\n    .replace(/<[^>]*>/g, ' ')\n    .replace(/&nbsp;/gi, ' ')\n    .replace(/&amp;/gi, '&')\n    .replace(/\\s+/g, ' ')\n    .trim();\n}\n\nconst grid = parseCSV(raw);\nif (grid.length === 0) {\n  return [];\n}\nconst headers = grid[0].map(cleanHeader);\nconst out = [];\nfor (let r = 1; r < grid.length; r++) {\n  const cells = grid[r];\n  if (cells.length === 1 && String(cells[0]).trim() === '') { continue; }\n  const obj = {};\n  for (let c = 0; c < headers.length; c++) {\n    obj[headers[c]] = cells[c] !== undefined ? String(cells[c]).trim() : '';\n  }\n  out.push({ json: obj });\n}\nreturn out;\n"
+      },
+      "id": "n05-parse-registration-csv",
+      "name": "Parse Registration CSV",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        300,
+        -140
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Strip PII from Registration\n// HARD PRIVACY BOUNDARY. Sensitive student fields are dropped here and never\n// pass downstream. Only the whitelisted follow-up fields are emitted, mapped to\n// the shared leads-tab schema. Missing expected columns are logged, not\n// silently ignored.\n\nconst items = $input.all();\n\nfunction norm(s) {\n  return String(s).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();\n}\n\n// A column is DROPPED (never emitted) when its header matches a sensitive\n// field. Note that \"Student's Homeroom Teacher\" must be KEPT, so the student\n// rule requires both \"student\" and \"name\" rather than \"student\" alone.\nfunction isDropped(header) {\n  const h = norm(header);\n  if (h.indexOf('date of birth') !== -1 || h.indexOf('birth') !== -1) { return true; }\n  if (h.indexOf('address') !== -1) { return true; }\n  if (h.indexOf('allerg') !== -1 || h.indexOf('medical') !== -1) { return true; }\n  if (h.indexOf('authorized to pick') !== -1 || h.indexOf('other adults') !== -1) { return true; }\n  if (h.indexOf('emergency') !== -1) { return true; }\n  if (h.indexOf('student') !== -1 && h.indexOf('name') !== -1) { return true; }\n  return false;\n}\n\n// Find the value of the first column whose normalized header contains ALL of\n// the given words. Dropped columns are never eligible.\nfunction pick(obj, wordSets) {\n  const keys = Object.keys(obj);\n  for (const words of wordSets) {\n    for (const k of keys) {\n      if (isDropped(k)) { continue; }\n      const nk = norm(k);\n      if (words.every((w) => nk.indexOf(norm(w)) !== -1)) {\n        return String(obj[k]).trim();\n      }\n    }\n  }\n  return '';\n}\n\nfunction parseCurrency(v) {\n  if (v === undefined || v === null) { return 0; }\n  const cleaned = String(v).replace(/[$,\\s]/g, '');\n  const n = parseFloat(cleaned);\n  return isNaN(n) ? 0 : n;\n}\n\nconst out = [];\nlet missingWarned = false;\n\nfor (const item of items) {\n  const row = item.json || {};\n\n  const entry_id = pick(row, [['entry', 'id'], ['id']]);\n  const entry_date = pick(row, [['entry', 'date'], ['date', 'submitted'], ['date']]);\n  const name = pick(row, [['parent', 'name'], ['guardian', 'name'], ['guardian'], ['parent']]);\n  const email = pick(row, [['parent', 'email'], ['guardian', 'email'], ['email']]);\n  const school = pick(row, [['school', 'name'], ['school']]);\n  const grade = pick(row, [['grade']]);\n  const homeroom_teacher = pick(row, [['homeroom'], ['teacher']]);\n  const amount_usd = parseCurrency(pick(row, [['register', 'pay'], ['amount'], ['pay']]));\n\n  // Never emit a dropped field even by accident: build a fresh object.\n  const lead = {\n    entry_id: entry_id,\n    entry_date: entry_date,\n    source: 'registration',\n    name: name,\n    email: email,\n    school: school,\n    grade: grade,\n    homeroom_teacher: homeroom_teacher,\n    amount_usd: amount_usd,\n    category: '',\n    sentiment: '',\n    summary: ''\n  };\n\n  if (!missingWarned) {\n    const missing = [];\n    if (!entry_id) { missing.push('Entry ID'); }\n    if (!name) { missing.push('Parent/Guardian Name'); }\n    if (!email) { missing.push('Parent Email'); }\n    if (missing.length > 0) {\n      console.warn('Registration schema warning: expected columns not found: ' + missing.join(', ') + '. The VFB Pro export layout may have changed.');\n      missingWarned = true;\n    }\n  }\n\n  out.push({ json: lead });\n}\n\nreturn out;\n"
+      },
+      "id": "n06-strip-pii-from-registration",
+      "name": "Strip PII from Registration",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        520,
+        -140
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Aggregate Registration\n// Groups the PII-stripped rows by month (YYYY-MM of Entry Date) and by school,\n// then counts enrollments and sums revenue. Emits one row per group in the\n// shared aggregates-tab schema.\n\nconst items = $input.all();\n\nfunction monthKey(dateStr) {\n  const s = String(dateStr || '').trim();\n  // Fast path for ISO-like values (2024-05-01 ...).\n  const iso = s.match(/^(\\d{4})-(\\d{2})/);\n  if (iso) { return iso[1] + '-' + iso[2]; }\n  const d = new Date(s);\n  if (!isNaN(d.getTime())) {\n    const m = String(d.getMonth() + 1).padStart(2, '0');\n    return d.getFullYear() + '-' + m;\n  }\n  return 'unknown';\n}\n\nconst groups = {};\nfor (const item of items) {\n  const row = item.json || {};\n  const dk = monthKey(row.entry_date);\n  const school = String(row.school || '').trim() || 'unknown';\n  const key = dk + '||' + school;\n  if (!groups[key]) {\n    groups[key] = { date_key: dk, school: school, enrollment_count: 0, revenue_usd: 0 };\n  }\n  groups[key].enrollment_count += 1;\n  const amt = Number(row.amount_usd);\n  groups[key].revenue_usd += isNaN(amt) ? 0 : amt;\n}\n\nconst out = [];\nfor (const key of Object.keys(groups)) {\n  const g = groups[key];\n  out.push({\n    json: {\n      date_key: g.date_key,\n      source: 'registration',\n      school: g.school,\n      enrollment_count: g.enrollment_count,\n      revenue_usd: Math.round(g.revenue_usd * 100) / 100,\n      message_count: '',\n      category: '',\n      sentiment: ''\n    }\n  });\n}\n\nreturn out;\n"
+      },
+      "id": "n07-aggregate-registration",
+      "name": "Aggregate Registration",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        760,
+        -220
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Config').item.json.google_sheet_id }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "={{ $('Config').item.json.tab_aggregates }}",
+          "cachedResultName": "={{ $('Config').item.json.tab_aggregates }}"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "n08-append-registration-aggregates",
+      "name": "Append Registration Aggregates",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        980,
+        -220
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "arthouseGoogleSheets",
+          "name": "ArtHouse Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Config').item.json.google_sheet_id }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "={{ $('Config').item.json.tab_leads }}",
+          "cachedResultName": "={{ $('Config').item.json.tab_leads }}"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "n09-append-registration-leads",
+      "name": "Append Registration Leads",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        760,
+        -40
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "arthouseGoogleSheets",
+          "name": "ArtHouse Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').item.json.vfb_export_url }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "vfb-export-form",
+              "value": "={{ $('Config').item.json.contact_us_form_id }}"
+            },
+            {
+              "name": "vfb-export-format",
+              "value": "csv"
+            },
+            {
+              "name": "vfb-export-content",
+              "value": "all"
+            },
+            {
+              "name": "vfb-export-date-start",
+              "value": "={{ $('Config').item.json.contact_start_date }}"
+            },
+            {
+              "name": "vfb-export-date-end",
+              "value": "={{ $('Config').item.json.end_date }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "id": "n10-fetch-contact-us-csv",
+      "name": "Fetch Contact Us CSV",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        80,
+        220
+      ],
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "arthouseWpBasicAuth",
+          "name": "ArtHouse WordPress Basic Auth"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Config').item.json.google_sheet_id }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "={{ $('Config').item.json.tab_leads }}",
+          "cachedResultName": "={{ $('Config').item.json.tab_leads }}"
+        },
+        "options": {}
+      },
+      "id": "n11-read-existing-leads",
+      "name": "Read Existing Leads",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        300,
+        220
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "arthouseGoogleSheets",
+          "name": "ArtHouse Google Sheets"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse Contact Us CSV\n// The direct input to this node is the \"Read Existing Leads\" node (used later\n// for deduplication), so the CSV text is pulled from the \"Fetch Contact Us CSV\"\n// node by name. Same robust parser as the registration path: quoted multi-line\n// message bodies, embedded HTML, and messy headers are all handled.\n\nlet raw = '';\ntry {\n  const fetched = $('Fetch Contact Us CSV').all();\n  raw = fetched.length ? String(fetched[0].json.data || fetched[0].json.body || fetched[0].json.text || '') : '';\n} catch (e) {\n  raw = '';\n}\n\nfunction parseCSV(text) {\n  const rows = [];\n  let field = '';\n  let row = [];\n  let inQuotes = false;\n  for (let i = 0; i < text.length; i++) {\n    const ch = text[i];\n    if (inQuotes) {\n      if (ch === '\"') {\n        if (text[i + 1] === '\"') { field += '\"'; i++; }\n        else { inQuotes = false; }\n      } else {\n        field += ch;\n      }\n    } else {\n      if (ch === '\"') { inQuotes = true; }\n      else if (ch === ',') { row.push(field); field = ''; }\n      else if (ch === '\\r') { /* ignore, handled on \\n */ }\n      else if (ch === '\\n') { row.push(field); rows.push(row); row = []; field = ''; }\n      else { field += ch; }\n    }\n  }\n  if (field.length > 0 || row.length > 0) { row.push(field); rows.push(row); }\n  return rows;\n}\n\nfunction cleanHeader(h) {\n  return String(h)\n    .replace(/<[^>]*>/g, ' ')\n    .replace(/&nbsp;/gi, ' ')\n    .replace(/&amp;/gi, '&')\n    .replace(/\\s+/g, ' ')\n    .trim();\n}\n\nconst grid = parseCSV(raw);\nif (grid.length === 0) {\n  return [];\n}\nconst headers = grid[0].map(cleanHeader);\nconst out = [];\nfor (let r = 1; r < grid.length; r++) {\n  const cells = grid[r];\n  if (cells.length === 1 && String(cells[0]).trim() === '') { continue; }\n  const obj = {};\n  for (let c = 0; c < headers.length; c++) {\n    obj[headers[c]] = cells[c] !== undefined ? String(cells[c]).trim() : '';\n  }\n  out.push({ json: obj });\n}\nreturn out;\n"
+      },
+      "id": "n12-parse-contact-us-csv",
+      "name": "Parse Contact Us CSV",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        520,
+        220
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Dedupe Against Sheet\n// Normalizes each parsed Contact Us row into a stable schema and drops rows\n// whose Entry ID already exists in the leads tab, so repeat runs never\n// re-classify (and never re-bill the LLM). In BACKFILL_MODE every row passes.\n\nconst items = $input.all();\n\nconst backfill = $('Config').first().json.backfill_mode === true\n  || String($('Config').first().json.backfill_mode) === 'true';\n\n// Collect Entry IDs already stored in the leads tab. Missing/empty is fine.\nconst existing = new Set();\ntry {\n  const rows = $('Read Existing Leads').all();\n  for (const r of rows) {\n    const id = r.json && (r.json.entry_id !== undefined ? r.json.entry_id : r.json['entry_id']);\n    if (id !== undefined && id !== null && String(id).trim() !== '') {\n      existing.add(String(id).trim());\n    }\n  }\n} catch (e) {\n  // Read node did not run or tab is empty: treat as no existing IDs.\n}\n\nfunction norm(s) {\n  return String(s).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();\n}\n\nfunction pick(obj, includeSets, excludeWords) {\n  const excl = (excludeWords || []).map(norm);\n  const keys = Object.keys(obj);\n  for (const words of includeSets) {\n    for (const k of keys) {\n      const nk = norm(k);\n      if (excl.some((e) => nk.indexOf(e) !== -1)) { continue; }\n      if (words.every((w) => nk.indexOf(norm(w)) !== -1)) {\n        return String(obj[k]).trim();\n      }\n    }\n  }\n  return '';\n}\n\nconst out = [];\nfor (const item of items) {\n  const row = item.json || {};\n\n  const entry_id = pick(row, [['entry', 'id'], ['id']]);\n  const entry_date = pick(row, [['entry', 'date'], ['date', 'submitted'], ['date']]);\n  const name = pick(row, [['first', 'name'], ['full', 'name'], ['name']], ['school', 'company', 'user', 'file']);\n  const email = pick(row, [['email']]);\n  const phone = pick(row, [['phone'], ['telephone'], ['mobile']]);\n  const company_school = pick(row, [['company', 'school'], ['company'], ['school'], ['organization'], ['organisation']]);\n  const subject = pick(row, [['subject'], ['topic'], ['reason']]);\n  const message = pick(row, [['message'], ['comment'], ['inquiry'], ['enquiry'], ['body'], ['details'], ['question']]);\n\n  if (!backfill && entry_id && existing.has(String(entry_id).trim())) {\n    continue;\n  }\n\n  out.push({\n    json: {\n      entry_id: entry_id,\n      entry_date: entry_date,\n      name: name,\n      email: email,\n      phone: phone,\n      company_school: company_school,\n      subject: subject,\n      message: message\n    }\n  });\n}\n\nreturn out;\n"
+      },
+      "id": "n13-dedupe-against-sheet",
+      "name": "Dedupe Against Sheet",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        740,
+        220
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: $('Config').item.json.llm_model, max_tokens: 200, system: \"You are a classifier for a nonprofit arts organization inbound contact form. Respond with ONLY a JSON object, no prose and no code fences, with exactly these keys: category (one of: sponsor, school, volunteer, general, spam), sentiment (one of: positive, neutral, urgent), summary (one sentence under 20 words). If unsure use category general and sentiment neutral.\", messages: [ { role: 'user', content: ('Subject: ' + ($json.subject || '(none)') + ' | Message: ' + ($json.message || '(none)')).slice(0, 4000) } ] }) }}",
+        "options": {
+          "batching": {
+            "batch": {
+              "batchSize": 10,
+              "batchInterval": 1000
+            }
+          }
+        }
+      },
+      "id": "n14-classify-message",
+      "name": "Classify Message",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        960,
+        220
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "arthouseAnthropic",
+          "name": "Anthropic API"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {
+        "jsCode": "// Apply Classification (runs once per item)\n// Parses the Claude response for one Contact Us message, validates it against\n// the allowed category and sentiment values, and merges it back with the\n// original row. Any parse failure or out-of-range value falls back to safe\n// defaults so a bad response never breaks the run.\n\nconst cfg = $('Config').first().json;\nconst categories = String(cfg.category_list || 'sponsor,school,volunteer,general,spam').split(',').map((s) => s.trim());\nconst sentiments = String(cfg.sentiment_list || 'positive,neutral,urgent').split(',').map((s) => s.trim());\n\n// The original normalized row this classification belongs to.\nconst src = $('Dedupe Against Sheet').item.json;\n\n// Pull the model's text out of the Anthropic /v1/messages response shape.\nlet text = '';\ntry {\n  const resp = $json;\n  if (resp && Array.isArray(resp.content) && resp.content.length > 0) {\n    text = String(resp.content[0].text || '');\n  } else if (resp && typeof resp.completion === 'string') {\n    text = resp.completion;\n  } else if (typeof resp === 'string') {\n    text = resp;\n  }\n} catch (e) {\n  text = '';\n}\n\nlet category = 'general';\nlet sentiment = 'neutral';\nlet summary = '[classification failed]';\n\ntry {\n  const match = text.match(/\\{[\\s\\S]*\\}/);\n  if (match) {\n    const parsed = JSON.parse(match[0]);\n    const c = String(parsed.category || '').toLowerCase().trim();\n    const s = String(parsed.sentiment || '').toLowerCase().trim();\n    const sum = String(parsed.summary || '').trim();\n    if (categories.indexOf(c) !== -1) { category = c; }\n    if (sentiments.indexOf(s) !== -1) { sentiment = s; }\n    if (sum) { summary = sum.length > 160 ? sum.slice(0, 157) + '...' : sum; }\n  }\n} catch (e) {\n  // keep defaults\n}\n\nconst lead = {\n  entry_id: src.entry_id || '',\n  entry_date: src.entry_date || '',\n  source: 'contact_us',\n  name: src.name || '',\n  email: src.email || '',\n  school: src.company_school || '',\n  grade: '',\n  homeroom_teacher: '',\n  amount_usd: '',\n  category: category,\n  sentiment: sentiment,\n  summary: summary\n};\n\nreturn { json: lead };\n",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "n15-apply-classification",
+      "name": "Apply Classification",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1180,
+        220
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Aggregate Contact Us\n// Groups classified messages by month and category, counting messages and\n// taking the majority sentiment per group. Emits rows in the shared\n// aggregates-tab schema.\n\nconst items = $input.all();\n\nfunction monthKey(dateStr) {\n  const s = String(dateStr || '').trim();\n  const iso = s.match(/^(\\d{4})-(\\d{2})/);\n  if (iso) { return iso[1] + '-' + iso[2]; }\n  const d = new Date(s);\n  if (!isNaN(d.getTime())) {\n    const m = String(d.getMonth() + 1).padStart(2, '0');\n    return d.getFullYear() + '-' + m;\n  }\n  return 'unknown';\n}\n\nconst groups = {};\nfor (const item of items) {\n  const row = item.json || {};\n  const dk = monthKey(row.entry_date);\n  const category = String(row.category || 'general').trim() || 'general';\n  const sentiment = String(row.sentiment || 'neutral').trim() || 'neutral';\n  const key = dk + '||' + category;\n  if (!groups[key]) {\n    groups[key] = { date_key: dk, category: category, message_count: 0, sentiments: {} };\n  }\n  groups[key].message_count += 1;\n  groups[key].sentiments[sentiment] = (groups[key].sentiments[sentiment] || 0) + 1;\n}\n\nconst out = [];\nfor (const key of Object.keys(groups)) {\n  const g = groups[key];\n  let majority = 'neutral';\n  let best = -1;\n  for (const s of Object.keys(g.sentiments)) {\n    if (g.sentiments[s] > best) { best = g.sentiments[s]; majority = s; }\n  }\n  out.push({\n    json: {\n      date_key: g.date_key,\n      source: 'contact_us',\n      school: '',\n      enrollment_count: '',\n      revenue_usd: '',\n      message_count: g.message_count,\n      category: g.category,\n      sentiment: majority\n    }\n  });\n}\n\nreturn out;\n"
+      },
+      "id": "n16-aggregate-contact-us",
+      "name": "Aggregate Contact Us",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1400,
+        120
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Config').item.json.google_sheet_id }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "={{ $('Config').item.json.tab_aggregates }}",
+          "cachedResultName": "={{ $('Config').item.json.tab_aggregates }}"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "n17-append-contact-us-aggregates",
+      "name": "Append Contact Us Aggregates",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1620,
+        120
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "arthouseGoogleSheets",
+          "name": "ArtHouse Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Config').item.json.google_sheet_id }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "={{ $('Config').item.json.tab_leads }}",
+          "cachedResultName": "={{ $('Config').item.json.tab_leads }}"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "n18-append-contact-us-leads",
+      "name": "Append Contact Us Leads",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1400,
+        300
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "arthouseGoogleSheets",
+          "name": "ArtHouse Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Config').item.json.google_sheet_id }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "={{ $('Config').item.json.tab_leads }}",
+          "cachedResultName": "={{ $('Config').item.json.tab_leads }}"
+        },
+        "options": {}
+      },
+      "id": "n19-read-recent-leads",
+      "name": "Read Recent Leads",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        80,
+        540
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "arthouseGoogleSheets",
+          "name": "ArtHouse Google Sheets"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build Weekly Summary\n// Runs only on Mondays. Reads the recent leads, filters to the last 7 days, and\n// composes a compact HTML email. If today is not Monday it returns no items, so\n// the Gmail node downstream simply does not send.\n\nconst cfg = $('Config').first().json;\nconst now = new Date();\n\n// Monday is 1 in both luxon (Config.run_weekday) and JS getDay(). Prefer the\n// Config value, fall back to the local clock.\nconst weekday = Number(cfg.run_weekday) || now.getDay();\nif (weekday !== 1) {\n  return [];\n}\n\nconst items = $input.all();\n\nconst msPerDay = 24 * 60 * 60 * 1000;\nconst cutoff = new Date(now.getTime() - 7 * msPerDay);\n\nfunction toDate(s) {\n  const str = String(s || '').trim();\n  const d = new Date(str);\n  return isNaN(d.getTime()) ? null : d;\n}\n\nfunction fmt(d) {\n  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');\n}\n\nlet regCount = 0;\nlet contactCount = 0;\nlet revenue = 0;\nconst catCounts = { sponsor: 0, school: 0, volunteer: 0, general: 0, spam: 0 };\nconst urgent = [];\n\nfor (const item of items) {\n  const row = item.json || {};\n  const d = toDate(row.entry_date);\n  if (!d || d < cutoff) { continue; }\n  const source = String(row.source || '').trim();\n  if (source === 'registration') {\n    regCount += 1;\n    const amt = parseFloat(String(row.amount_usd).replace(/[$,\\s]/g, ''));\n    if (!isNaN(amt)) { revenue += amt; }\n  } else if (source === 'contact_us') {\n    contactCount += 1;\n    const cat = String(row.category || 'general').trim();\n    if (catCounts[cat] !== undefined) { catCounts[cat] += 1; }\n    if (String(row.sentiment || '').trim() === 'urgent') {\n      urgent.push({ name: row.name || '(no name)', email: row.email || '(no email)', summary: row.summary || '' });\n    }\n  }\n}\n\nconst total = regCount + contactCount;\nconst rangeStart = fmt(cutoff);\nconst rangeEnd = fmt(now);\nconst looker = String(cfg.looker_dashboard_url || '').trim();\n\nlet urgentHtml = '<p style=\"margin:6px 0;color:#666;\">No urgent messages this week.</p>';\nif (urgent.length > 0) {\n  urgentHtml = '<ul style=\"margin:6px 0 6px 18px;padding:0;\">' + urgent.map(function (u) {\n    return '<li style=\"margin:2px 0;\"><strong>' + u.name + '</strong> (' + u.email + '): ' + u.summary + '</li>';\n  }).join('') + '</ul>';\n}\n\nconst html =\n  '<div style=\"font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#222;max-width:600px;\">' +\n  '<h2 style=\"margin:0 0 4px;\">ArtHouse weekly summary</h2>' +\n  '<p style=\"margin:0 0 12px;color:#666;\">' + rangeStart + ' to ' + rangeEnd + '</p>' +\n  '<p style=\"margin:6px 0;\"><strong>' + total + '</strong> new form entries this week (' + regCount + ' registration, ' + contactCount + ' contact us).</p>' +\n  '<p style=\"margin:6px 0;\"><strong>Revenue this week:</strong> $' + (Math.round(revenue * 100) / 100).toFixed(2) + '</p>' +\n  '<p style=\"margin:12px 0 4px;\"><strong>Contact Us by category</strong></p>' +\n  '<p style=\"margin:0 0 6px;\">sponsor: ' + catCounts.sponsor + ', school: ' + catCounts.school + ', volunteer: ' + catCounts.volunteer + ', general: ' + catCounts.general + ', spam: ' + catCounts.spam + '</p>' +\n  '<p style=\"margin:12px 0 4px;\"><strong>Urgent messages</strong></p>' +\n  urgentHtml +\n  (looker ? '<p style=\"margin:14px 0 0;\"><a href=\"' + looker + '\">Open the Looker Studio dashboard</a></p>' : '') +\n  '</div>';\n\nconst subject = 'ArtHouse weekly summary, ' + rangeStart + ' to ' + rangeEnd;\n\nreturn [{\n  json: {\n    to: String(cfg.weekly_summary_recipient || '').trim(),\n    subject: subject,\n    html: html,\n    total_entries: total\n  }\n}];\n"
+      },
+      "id": "n20-build-weekly-summary",
+      "name": "Build Weekly Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        300,
+        540
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.to }}",
+        "subject": "={{ $json.subject }}",
+        "emailType": "html",
+        "message": "={{ $json.html }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "n21-send-weekly-summary",
+      "name": "Send Weekly Summary",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        520,
+        540
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "arthouseGmail",
+          "name": "ArtHouse Gmail"
+        }
+      },
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Fetch Registration CSV",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Fetch Contact Us CSV",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Read Recent Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Registration CSV": {
+      "main": [
+        [
+          {
+            "node": "Parse Registration CSV",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Registration CSV": {
+      "main": [
+        [
+          {
+            "node": "Strip PII from Registration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Strip PII from Registration": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Registration",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Append Registration Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate Registration": {
+      "main": [
+        [
+          {
+            "node": "Append Registration Aggregates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Contact Us CSV": {
+      "main": [
+        [
+          {
+            "node": "Read Existing Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Existing Leads": {
+      "main": [
+        [
+          {
+            "node": "Parse Contact Us CSV",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Contact Us CSV": {
+      "main": [
+        [
+          {
+            "node": "Dedupe Against Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dedupe Against Sheet": {
+      "main": [
+        [
+          {
+            "node": "Classify Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Classify Message": {
+      "main": [
+        [
+          {
+            "node": "Apply Classification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apply Classification": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Contact Us",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Append Contact Us Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate Contact Us": {
+      "main": [
+        [
+          {
+            "node": "Append Contact Us Aggregates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Recent Leads": {
+      "main": [
+        [
+          {
+            "node": "Build Weekly Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Weekly Summary": {
+      "main": [
+        [
+          {
+            "node": "Send Weekly Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Los_Angeles",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": "arthouseOpsErrors"
+  },
+  "id": "arthouseOpsMain",
+  "meta": {
+    "instanceId": "arthouse-ops"
+  },
+  "tags": []
+}

@@ -1,15 +1,61 @@
-# arthouse-ops local n8n stack (initial scaffold).
-# The full service definition with mounts, healthcheck, and env expression
-# support lands on the feat/dashboard-mvp branch.
+# arthouse-ops local n8n stack.
+#
+# Start it with:   docker compose up -d
+# Stop it with:    docker compose down
+# View logs with:  docker compose logs -f n8n
+#
+# This runs the official n8n image on http://localhost:5678 with a named volume
+# so your login, imported workflows, and completed OAuth logins all survive a
+# restart. Configuration comes from the .env file in this folder.
 services:
   n8n:
     image: docker.n8n.io/n8nio/n8n
+    container_name: arthouse-ops-n8n
+    restart: unless-stopped
     ports:
+      # host:container. Open http://localhost:5678 in your browser.
       - "5678:5678"
+    # Loads every KEY=VALUE from .env into the container environment so the
+    # workflow's Config node can read them with $env expressions.
     env_file:
       - .env
+    environment:
+      # Allow logging in over plain http on localhost (no TLS needed locally).
+      - N8N_SECURE_COOKIE=false
+      # Enable the task runners the current n8n version expects.
+      - N8N_RUNNERS_ENABLED=true
+      # Let node expressions read process env vars via {{ $env.NAME }}.
+      - N8N_BLOCK_ENV_ACCESS_IN_NODE=false
+      # Allow Code nodes and expressions to access the environment.
+      - N8N_EXPRESSION_EVALUATOR=tournament
+      # Bind to all interfaces inside the container.
+      - N8N_HOST=0.0.0.0
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      # Timezone for the daily Schedule Trigger and any date math.
+      - GENERIC_TIMEZONE=America/Los_Angeles
+      - TZ=America/Los_Angeles
     volumes:
+      # Persistent n8n home: encryption key, credentials, workflows, settings.
       - n8n_data:/home/node/.n8n
+      # Project mounts. workflows is read-only because the container only reads
+      # the JSON we import. The others are working folders for data exchange.
+      - ./workflows:/workflows:ro
+      - ./data:/data
+      - ./inputs:/inputs
+      - ./outputs:/outputs
+    healthcheck:
+      # n8n exposes an unauthenticated /healthz endpoint that returns 200 when
+      # the app is ready. docker compose reports the container as healthy once
+      # this passes, which the import script waits for.
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:5678/healthz || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
 
 volumes:
+  # Named volume, managed by Docker. Survives docker compose down. Remove it
+  # only with: docker compose down -v  (this wipes your n8n data and logins).
   n8n_data:
+    name: arthouse_ops_n8n_data
