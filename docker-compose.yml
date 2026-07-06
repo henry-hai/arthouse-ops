@@ -28,10 +28,15 @@ services:
       - N8N_BLOCK_ENV_ACCESS_IN_NODE=false
       # Allow Code nodes and expressions to access the environment.
       - N8N_EXPRESSION_EVALUATOR=tournament
-      # Bind to all interfaces inside the container.
-      - N8N_HOST=0.0.0.0
+      # Public host used to build editor links and the OAuth callback URL. This
+      # must be localhost so the Google OAuth redirect matches the browser
+      # address. n8n still listens on all interfaces inside the container.
+      - N8N_HOST=localhost
       - N8N_PORT=5678
       - N8N_PROTOCOL=http
+      # Pin the base URL used for the OAuth redirect and webhooks to localhost.
+      - N8N_EDITOR_BASE_URL=http://localhost:5678/
+      - WEBHOOK_URL=http://localhost:5678/
       # Timezone for the daily Schedule Trigger and any date math.
       - GENERIC_TIMEZONE=America/Los_Angeles
       - TZ=America/Los_Angeles
