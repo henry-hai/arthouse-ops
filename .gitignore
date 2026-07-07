@@ -21,3 +21,18 @@ arthouse-ops-context.txt
 
 # Local setup guides, not part of the published repo
 docs/
+
+# Downloaded Google OAuth client secret files, keep local only
+client_secret*.json
+*.apps.googleusercontent.com.json
+
+# Local secrets backup folder, never commit
+secrets/
+
+# Real form-data exports may contain student PII, never commit them
+inputs/*.csv
+inputs/*.txt
+inputs/*.xls
+inputs/*.xlsx
+data/*.csv
+data/*.txt
