@@ -25,3 +25,6 @@ docs/
 # Downloaded Google OAuth client secret files, keep local only
 client_secret*.json
 *.apps.googleusercontent.com.json
+
+# Local secrets backup folder, never commit
+secrets/
