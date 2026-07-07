@@ -28,3 +28,11 @@ client_secret*.json
 
 # Local secrets backup folder, never commit
 secrets/
+
+# Real form-data exports may contain student PII, never commit them
+inputs/*.csv
+inputs/*.txt
+inputs/*.xls
+inputs/*.xlsx
+data/*.csv
+data/*.txt

@@ -30,7 +30,8 @@ The flow then branches into three paths that share the same Google Sheet sinks:
   validate the result, aggregate by month and category, and write aggregates and
   leads.
 - **Notification path**: read recent leads, build a weekly HTML summary (only on
-  Mondays), and send it via Gmail.
+  the configured send day, default Sunday), send it via Gmail, and record the
+  send so a repeat run the same day does not email twice.
 
 A separate error workflow catches any node failure and appends a row to an
 errors tab.
@@ -38,7 +39,7 @@ errors tab.
 ## Node-by-node flow
 
 1. **Manual Trigger** starts a run on demand for demos.
-2. **Schedule Trigger** starts a run daily at 8:00 AM local time.
+2. **Schedule Trigger** starts a run weekly on Sunday at 2:00 PM Pacific time.
 3. **Config** defines every setting (URLs, form ids, sheet id, tab names,
    category and sentiment lists, model, backfill flag, date ranges) from env.
 4. **Fetch Registration CSV** posts to the VFB Pro export with WordPress Basic
@@ -67,10 +68,13 @@ errors tab.
 17. **Append Contact Us Aggregates** writes those group rows to the aggregates
     tab.
 18. **Append Contact Us Leads** writes each classified message to the leads tab.
-19. **Read Recent Leads** reads the leads tab for the weekly summary.
-20. **Build Weekly Summary** composes the Monday email and produces nothing on
-    other days.
-21. **Send Weekly Summary** sends the email through Gmail.
+19. **Read Email State** reads the date a summary was last sent (duplicate guard).
+20. **Read Recent Leads** reads the leads tab for the weekly summary.
+21. **Build Weekly Summary** composes the email on the configured send day
+    (default Sunday) and skips if it is not that day or one already went out today.
+22. **Send Weekly Summary** sends the email through Gmail.
+23. **Record Email Sent** records today in the state tab so a repeat run the same
+    day does not email again.
 
 Plus a separate error workflow: **Error Trigger** to **Format Error Row** to
 **Append Error**.
@@ -98,9 +102,9 @@ WordPress username in `.env` as `WP_USERNAME` and the code as `WP_APP_PASSWORD`.
 
 Open your `arthouse-ops` spreadsheet at https://sheets.google.com. The Sheet ID
 is the long string in the URL between `/d/` and `/edit`. Paste it into `.env` as
-`GOOGLE_SHEET_ID`. Create three tabs named `aggregates`, `leads`, and `errors`,
-and put the matching header row (see the Data model section below) in row 1 of
-each, one column name per cell.
+`GOOGLE_SHEET_ID`. Create four tabs named `aggregates`, `leads`, `errors`, and
+`state`, and put the matching header row (see the Data model section below) in
+row 1 of each, one column name per cell.
 
 ### Step 4: Fill in .env with real values
 
@@ -202,6 +206,12 @@ entry_id,entry_date,source,name,email,school,grade,homeroom_teacher,amount_usd,c
 
 ```
 timestamp,node_name,error_message,workflow_run_id
+```
+
+**state** (internal, for the once-per-day weekly-email guard)
+
+```
+key,value
 ```
 
 On the registration side the shared `name` and `email` columns hold the parent
