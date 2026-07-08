@@ -21,15 +21,19 @@ email summary.
 
 Two triggers (a Manual Trigger for demos and a daily Schedule Trigger) feed one
 Config node that centralizes every setting and reads from environment variables.
-The flow then branches into three paths that share the same Google Sheet sinks:
+The flow then branches into three paths that all write to one Google Sheet. The
+leads tab is the single source of truth: every write is an upsert keyed on the
+entry id, so a run is idempotent and resumable. Re-running never duplicates a
+row, and an interrupted backfill can simply be run again to finish. The Looker
+Studio dashboard aggregates enrollment, revenue, and message counts directly
+from the leads tab, so the workflow keeps no separate summary table to fall out
+of sync.
 
 - **Registration path**: fetch the Registration entries from the connector plugin, parse them, strip student
-  PII, aggregate enrollment and revenue by month and school, and write both the
-  aggregates and the follow-up leads.
+  PII, and upsert the follow-up leads into the leads tab keyed by entry id.
 - **Contact Us path**: fetch the Contact Us entries from the connector plugin, read the existing leads to skip
-  anything already processed, parse, dedupe, classify each message with Claude,
-  validate the result, aggregate by month and category, and write aggregates and
-  leads.
+  anything already classified, parse, dedupe, classify each new message with
+  Claude, validate the result, and upsert the leads keyed by entry id.
 - **Notification path**: read recent leads, build a weekly HTML summary (only on
   the configured send day, default Sunday), send it via Gmail, and record the
   send so a repeat run the same day does not email twice.
@@ -49,33 +53,28 @@ errors tab.
    per entry, keyed by field label.
 6. **Strip PII from Registration** drops sensitive student fields and keeps only
    the whitelisted follow-up fields.
-7. **Aggregate Registration** groups rows by month and school and computes
-   enrollment counts and revenue sums.
-8. **Append Registration Aggregates** writes those group rows to the aggregates
-   tab.
-9. **Append Registration Leads** writes the PII-stripped detail rows to the leads
-   tab.
-10. **Fetch Contact Us Entries** GETs the connector plugin for the Contact Us
-    form, paginated.
-11. **Read Existing Leads** reads the leads tab to know what has already been
-    processed.
-12. **Parse Contact Us Entries** flattens the plugin's JSON entries into rows.
-13. **Dedupe Against Sheet** normalizes each row and skips entries already in the
-    leads tab (everything passes during a backfill).
-14. **Classify Message** calls the Anthropic API for each new message and asks
+7. **Append Registration Leads** upserts the PII-stripped detail rows into the
+   leads tab, keyed on entry id.
+8. **Fetch Contact Us Entries** GETs the connector plugin for the Contact Us
+   form, paginated.
+9. **Read Existing Leads** reads the leads tab to know what has already been
+   classified.
+10. **Parse Contact Us Entries** flattens the plugin's JSON entries into rows.
+11. **Dedupe Against Sheet** normalizes each row and skips only entries that
+    already hold a successful classification, so new and previously failed rows
+    pass through to be (re)classified.
+12. **Classify Message** calls the Anthropic API for each new message and asks
     for structured JSON, with batching to stay within rate limits.
-15. **Apply Classification** parses and validates the model output, falling back
+13. **Apply Classification** parses and validates the model output, falling back
     to safe defaults on any bad response.
-16. **Aggregate Contact Us** groups classified messages by month and category.
-17. **Append Contact Us Aggregates** writes those group rows to the aggregates
-    tab.
-18. **Append Contact Us Leads** writes each classified message to the leads tab.
-19. **Read Email State** reads the date a summary was last sent (duplicate guard).
-20. **Read Recent Leads** reads the leads tab for the weekly summary.
-21. **Build Weekly Summary** composes the email on the configured send day
+14. **Append Contact Us Leads** upserts each classified message into the leads
+    tab, keyed on entry id.
+15. **Read Email State** reads the date a summary was last sent (duplicate guard).
+16. **Read Recent Leads** reads the leads tab for the weekly summary.
+17. **Build Weekly Summary** composes the email on the configured send day
     (default Sunday) and skips if it is not that day or one already went out today.
-22. **Send Weekly Summary** sends the email through Gmail.
-23. **Record Email Sent** records today in the state tab so a repeat run the same
+18. **Send Weekly Summary** sends the email through Gmail.
+19. **Record Email Sent** records today in the state tab so a repeat run the same
     day does not email again.
 
 Plus a separate error workflow: **Error Trigger** to **Format Error Row** to
@@ -112,9 +111,9 @@ Password, and copy the generated code (shown once). Put your WordPress username 
 
 Open your `arthouse-ops` spreadsheet at https://sheets.google.com. The Sheet ID
 is the long string in the URL between `/d/` and `/edit`. Paste it into `.env` as
-`GOOGLE_SHEET_ID`. Create four tabs named `aggregates`, `leads`, `errors`, and
-`state`, and put the matching header row (see the Data model section below) in
-row 1 of each, one column name per cell.
+`GOOGLE_SHEET_ID`. Create three tabs named `leads`, `errors`, and `state`, and
+put the matching header row (see the Data model section below) in row 1 of each,
+one column name per cell.
 
 ### Step 4: Fill in .env with real values
 
@@ -200,13 +199,8 @@ JSON response.
 
 Paste these header rows into row 1 of each tab, one name per cell.
 
-**aggregates** (drives the dashboard)
-
-```
-date_key,source,school,enrollment_count,revenue_usd,message_count,category,sentiment
-```
-
-**leads** (drives follow-up)
+**leads** (the single source of truth: one row per submission, upserted by
+`entry_id`; drives both follow-up and the dashboard)
 
 ```
 entry_id,entry_date,source,name,email,school,grade,homeroom_teacher,amount_usd,category,sentiment,summary
@@ -248,13 +242,16 @@ goes missing, the node logs a warning rather than failing silently.
 
 ## Dashboard
 
-Looker Studio connects to the Google Sheet as a layer on top. Create a
-report at https://lookerstudio.google.com, add the spreadsheet as a data source
-(both the aggregates and leads tabs), and build scorecards for total enrollment,
-revenue, and message count, a time series of enrollment and revenue by month,
-bar charts for messages by category and enrollment by school, and a table of
-recent leads for follow-up. Share the report, copy its link, and paste it into
-`.env` as `LOOKER_DASHBOARD_URL` so the weekly email links to it.
+Looker Studio connects to the Google Sheet as a layer on top and does its own
+aggregation from the leads tab, so there is no separate summary table to keep in
+sync. Create a report at https://lookerstudio.google.com, add the leads tab as a
+data source, and add a month dimension derived from `entry_date`. From that one
+source build scorecards for total enrollment (count of registration rows),
+revenue (sum of `amount_usd`), and message count (count of contact rows); a time
+series of enrollment and revenue by month; bar charts for messages by `category`
+and enrollment by `school`; and a table of recent leads for follow-up. Share the
+report, copy its link, and paste it into `.env` as `LOOKER_DASHBOARD_URL` so the
+weekly email links to it.
 
 ## Troubleshooting
 
