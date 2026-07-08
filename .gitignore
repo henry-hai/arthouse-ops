@@ -36,3 +36,6 @@ inputs/*.xls
 inputs/*.xlsx
 data/*.csv
 data/*.txt
+
+# Built plugin zip is a build artifact, keep only the .php source
+wordpress-plugin/*.zip

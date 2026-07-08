@@ -43,8 +43,8 @@
           "assignments": [
             {
               "id": "a0",
-              "name": "vfb_export_url",
-              "value": "={{ $env.VFB_EXPORT_URL || 'https://arthousestudioca.org/wp-admin/admin.php?page=vfb-pro-export' }}",
+              "name": "entries_url",
+              "value": "={{ $env.WORDPRESS_ENTRIES_URL || 'https://arthousestudioca.org/wp-json/arthouse-ops/v1/entries' }}",
               "type": "string"
             },
             {
@@ -183,46 +183,50 @@
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "={{ $('Config').item.json.vfb_export_url }}",
+        "method": "GET",
+        "url": "={{ $('Config').first().json.entries_url }}",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpBasicAuth",
-        "sendBody": true,
-        "contentType": "form-urlencoded",
-        "bodyParameters": {
+        "sendQuery": true,
+        "queryParameters": {
           "parameters": [
             {
-              "name": "vfb-export-form",
-              "value": "={{ $('Config').item.json.registration_form_id }}"
+              "name": "form",
+              "value": "={{ $('Config').first().json.registration_form_id }}"
             },
             {
-              "name": "vfb-export-format",
-              "value": "csv"
+              "name": "limit",
+              "value": "={{ $env.ENTRIES_PAGE_SIZE || '200' }}"
             },
             {
-              "name": "vfb-export-content",
-              "value": "all"
-            },
-            {
-              "name": "vfb-export-date-start",
-              "value": "={{ $('Config').item.json.reg_start_date }}"
-            },
-            {
-              "name": "vfb-export-date-end",
-              "value": "={{ $('Config').item.json.end_date }}"
+              "name": "include_spam",
+              "value": "0"
             }
           ]
         },
         "options": {
-          "response": {
-            "response": {
-              "responseFormat": "text"
+          "pagination": {
+            "pagination": {
+              "paginationMode": "updateAParameterInEachRequest",
+              "parameters": {
+                "parameters": [
+                  {
+                    "type": "qs",
+                    "name": "offset",
+                    "value": "={{ $pageCount * Number($env.ENTRIES_PAGE_SIZE || 200) }}"
+                  }
+                ]
+              },
+              "paginationCompleteWhen": "other",
+              "completeExpression": "={{ ($response.body.entries || []).length < Number($env.ENTRIES_PAGE_SIZE || 200) }}",
+              "limitPagesFetched": true,
+              "maxRequests": "={{ Number($env.ENTRIES_MAX_PAGES || 200) }}"
             }
           }
         }
       },
-      "id": "n04-fetch-registration-csv",
-      "name": "Fetch Registration CSV",
+      "id": "n04-fetch-registration-entries",
+      "name": "Fetch Registration Entries",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
@@ -239,10 +243,10 @@
     },
     {
       "parameters": {
-        "jsCode": "// Parse Registration CSV\n// Reads the CSV text returned by the \"Fetch Registration CSV\" HTTP node and\n// turns it into one item per row. Handles VFB Pro quirks: quoted multi-line\n// fields, embedded HTML in column labels, and trailing whitespace in headers.\n\nconst input = $input.all();\nconst raw = input.length ? String(input[0].json.data || input[0].json.body || input[0].json.text || '') : '';\n\nfunction parseCSV(text) {\n  const rows = [];\n  let field = '';\n  let row = [];\n  let inQuotes = false;\n  for (let i = 0; i < text.length; i++) {\n    const ch = text[i];\n    if (inQuotes) {\n      if (ch === '\"') {\n        if (text[i + 1] === '\"') { field += '\"'; i++; }\n        else { inQuotes = false; }\n      } else {\n        field += ch;\n      }\n    } else {\n      if (ch === '\"') { inQuotes = true; }\n      else if (ch === ',') { row.push(field); field = ''; }\n      else if (ch === '\\r') { /* ignore, handled on \\n */ }\n      else if (ch === '\\n') { row.push(field); rows.push(row); row = []; field = ''; }\n      else { field += ch; }\n    }\n  }\n  if (field.length > 0 || row.length > 0) { row.push(field); rows.push(row); }\n  return rows;\n}\n\nfunction cleanHeader(h) {\n  return String(h)\n    .replace(/<[^>]*>/g, ' ')\n    .replace(/&nbsp;/gi, ' ')\n    .replace(/&amp;/gi, '&')\n    .replace(/\\s+/g, ' ')\n    .trim();\n}\n\nconst grid = parseCSV(raw);\nif (grid.length === 0) {\n  return [];\n}\nconst headers = grid[0].map(cleanHeader);\nconst out = [];\nfor (let r = 1; r < grid.length; r++) {\n  const cells = grid[r];\n  if (cells.length === 1 && String(cells[0]).trim() === '') { continue; }\n  const obj = {};\n  for (let c = 0; c < headers.length; c++) {\n    obj[headers[c]] = cells[c] !== undefined ? String(cells[c]).trim() : '';\n  }\n  out.push({ json: obj });\n}\nreturn out;\n"
+        "jsCode": "// Parse Registration Entries\n// The connector plugin returns JSON. With pagination on, the input is one item\n// per page, each holding an \"entries\" array. Flatten every page's entries into\n// one row per entry, shaped like the old CSV rows (field labels as keys plus\n// Entry ID and Entry Date) so the downstream PII and aggregation nodes are\n// unchanged.\n\nconst pages = $input.all();\nconst out = [];\nfor (const page of pages) {\n  const body = page.json || {};\n  const entries = Array.isArray(body.entries) ? body.entries : [];\n  for (const e of entries) {\n    const row = {\n      'Entry ID': e.entry_id !== undefined ? String(e.entry_id) : '',\n      'Entry Date': e.date !== undefined ? String(e.date) : ''\n    };\n    const fields = e.fields || {};\n    for (const k of Object.keys(fields)) {\n      const v = fields[k];\n      row[k] = (v === null || v === undefined) ? '' : String(v).trim();\n    }\n    out.push({ json: row });\n  }\n}\nreturn out;\n"
       },
-      "id": "n05-parse-registration-csv",
-      "name": "Parse Registration CSV",
+      "id": "n05-parse-registration-entries",
+      "name": "Parse Registration Entries",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
@@ -285,13 +289,12 @@
         "documentId": {
           "__rl": true,
           "mode": "id",
-          "value": "={{ $('Config').item.json.google_sheet_id }}"
+          "value": "={{ $('Config').first().json.google_sheet_id }}"
         },
         "sheetName": {
           "__rl": true,
-          "mode": "list",
-          "value": "={{ $('Config').item.json.tab_aggregates }}",
-          "cachedResultName": "={{ $('Config').item.json.tab_aggregates }}"
+          "mode": "name",
+          "value": "={{ $('Config').first().json.tab_aggregates }}"
         },
         "columns": {
           "mappingMode": "autoMapInputData",
@@ -324,13 +327,12 @@
         "documentId": {
           "__rl": true,
           "mode": "id",
-          "value": "={{ $('Config').item.json.google_sheet_id }}"
+          "value": "={{ $('Config').first().json.google_sheet_id }}"
         },
         "sheetName": {
           "__rl": true,
-          "mode": "list",
-          "value": "={{ $('Config').item.json.tab_leads }}",
-          "cachedResultName": "={{ $('Config').item.json.tab_leads }}"
+          "mode": "name",
+          "value": "={{ $('Config').first().json.tab_leads }}"
         },
         "columns": {
           "mappingMode": "autoMapInputData",
@@ -359,46 +361,50 @@
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "={{ $('Config').item.json.vfb_export_url }}",
+        "method": "GET",
+        "url": "={{ $('Config').first().json.entries_url }}",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpBasicAuth",
-        "sendBody": true,
-        "contentType": "form-urlencoded",
-        "bodyParameters": {
+        "sendQuery": true,
+        "queryParameters": {
           "parameters": [
             {
-              "name": "vfb-export-form",
-              "value": "={{ $('Config').item.json.contact_us_form_id }}"
+              "name": "form",
+              "value": "={{ $('Config').first().json.contact_us_form_id }}"
             },
             {
-              "name": "vfb-export-format",
-              "value": "csv"
+              "name": "limit",
+              "value": "={{ $env.ENTRIES_PAGE_SIZE || '200' }}"
             },
             {
-              "name": "vfb-export-content",
-              "value": "all"
-            },
-            {
-              "name": "vfb-export-date-start",
-              "value": "={{ $('Config').item.json.contact_start_date }}"
-            },
-            {
-              "name": "vfb-export-date-end",
-              "value": "={{ $('Config').item.json.end_date }}"
+              "name": "include_spam",
+              "value": "0"
             }
           ]
         },
         "options": {
-          "response": {
-            "response": {
-              "responseFormat": "text"
+          "pagination": {
+            "pagination": {
+              "paginationMode": "updateAParameterInEachRequest",
+              "parameters": {
+                "parameters": [
+                  {
+                    "type": "qs",
+                    "name": "offset",
+                    "value": "={{ $pageCount * Number($env.ENTRIES_PAGE_SIZE || 200) }}"
+                  }
+                ]
+              },
+              "paginationCompleteWhen": "other",
+              "completeExpression": "={{ ($response.body.entries || []).length < Number($env.ENTRIES_PAGE_SIZE || 200) }}",
+              "limitPagesFetched": true,
+              "maxRequests": "={{ Number($env.ENTRIES_MAX_PAGES || 200) }}"
             }
           }
         }
       },
-      "id": "n10-fetch-contact-us-csv",
-      "name": "Fetch Contact Us CSV",
+      "id": "n10-fetch-contact-us-entries",
+      "name": "Fetch Contact Us Entries",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
@@ -419,13 +425,12 @@
         "documentId": {
           "__rl": true,
           "mode": "id",
-          "value": "={{ $('Config').item.json.google_sheet_id }}"
+          "value": "={{ $('Config').first().json.google_sheet_id }}"
         },
         "sheetName": {
           "__rl": true,
-          "mode": "list",
-          "value": "={{ $('Config').item.json.tab_leads }}",
-          "cachedResultName": "={{ $('Config').item.json.tab_leads }}"
+          "mode": "name",
+          "value": "={{ $('Config').first().json.tab_leads }}"
         },
         "options": {}
       },
@@ -447,10 +452,10 @@
     },
     {
       "parameters": {
-        "jsCode": "// Parse Contact Us CSV\n// The direct input to this node is the \"Read Existing Leads\" node (used later\n// for deduplication), so the CSV text is pulled from the \"Fetch Contact Us CSV\"\n// node by name. Same robust parser as the registration path: quoted multi-line\n// message bodies, embedded HTML, and messy headers are all handled.\n\nlet raw = '';\ntry {\n  const fetched = $('Fetch Contact Us CSV').all();\n  raw = fetched.length ? String(fetched[0].json.data || fetched[0].json.body || fetched[0].json.text || '') : '';\n} catch (e) {\n  raw = '';\n}\n\nfunction parseCSV(text) {\n  const rows = [];\n  let field = '';\n  let row = [];\n  let inQuotes = false;\n  for (let i = 0; i < text.length; i++) {\n    const ch = text[i];\n    if (inQuotes) {\n      if (ch === '\"') {\n        if (text[i + 1] === '\"') { field += '\"'; i++; }\n        else { inQuotes = false; }\n      } else {\n        field += ch;\n      }\n    } else {\n      if (ch === '\"') { inQuotes = true; }\n      else if (ch === ',') { row.push(field); field = ''; }\n      else if (ch === '\\r') { /* ignore, handled on \\n */ }\n      else if (ch === '\\n') { row.push(field); rows.push(row); row = []; field = ''; }\n      else { field += ch; }\n    }\n  }\n  if (field.length > 0 || row.length > 0) { row.push(field); rows.push(row); }\n  return rows;\n}\n\nfunction cleanHeader(h) {\n  return String(h)\n    .replace(/<[^>]*>/g, ' ')\n    .replace(/&nbsp;/gi, ' ')\n    .replace(/&amp;/gi, '&')\n    .replace(/\\s+/g, ' ')\n    .trim();\n}\n\nconst grid = parseCSV(raw);\nif (grid.length === 0) {\n  return [];\n}\nconst headers = grid[0].map(cleanHeader);\nconst out = [];\nfor (let r = 1; r < grid.length; r++) {\n  const cells = grid[r];\n  if (cells.length === 1 && String(cells[0]).trim() === '') { continue; }\n  const obj = {};\n  for (let c = 0; c < headers.length; c++) {\n    obj[headers[c]] = cells[c] !== undefined ? String(cells[c]).trim() : '';\n  }\n  out.push({ json: obj });\n}\nreturn out;\n"
+        "jsCode": "// Parse Contact Us Entries\n// The direct input to this node is \"Read Existing Leads\" (used for dedupe), so\n// the entries come from the \"Fetch Contact Us Entries\" node by name. Same\n// flatten as the registration parser. The Subject field holds the message body\n// on this form, so it is also copied to a Message key for the classifier.\n\nlet pages = [];\ntry {\n  pages = $('Fetch Contact Us Entries').all();\n} catch (e) {\n  pages = [];\n}\n\nconst out = [];\nfor (const page of pages) {\n  const body = page.json || {};\n  const entries = Array.isArray(body.entries) ? body.entries : [];\n  for (const e of entries) {\n    const row = {\n      'Entry ID': e.entry_id !== undefined ? String(e.entry_id) : '',\n      'Entry Date': e.date !== undefined ? String(e.date) : ''\n    };\n    const fields = e.fields || {};\n    for (const k of Object.keys(fields)) {\n      const v = fields[k];\n      row[k] = (v === null || v === undefined) ? '' : String(v).trim();\n    }\n    if (row['Subject'] && !row['Message']) {\n      row['Message'] = row['Subject'];\n    }\n    out.push({ json: row });\n  }\n}\nreturn out;\n"
       },
-      "id": "n12-parse-contact-us-csv",
-      "name": "Parse Contact Us CSV",
+      "id": "n12-parse-contact-us-entries",
+      "name": "Parse Contact Us Entries",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
@@ -494,7 +499,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ model: $('Config').item.json.llm_model, max_tokens: 200, system: \"You are a classifier for a nonprofit arts organization inbound contact form. Respond with ONLY a JSON object, no prose and no code fences, with exactly these keys: category (one of: sponsor, school, volunteer, general, spam), sentiment (one of: positive, neutral, urgent), summary (one sentence under 20 words). If unsure use category general and sentiment neutral.\", messages: [ { role: 'user', content: ('Subject: ' + ($json.subject || '(none)') + ' | Message: ' + ($json.message || '(none)')).slice(0, 4000) } ] }) }}",
+        "jsonBody": "={{ JSON.stringify({ model: $('Config').first().json.llm_model, max_tokens: 200, system: \"You are a classifier for a nonprofit arts organization inbound contact form. Respond with ONLY a JSON object, no prose and no code fences, with exactly these keys: category (one of: sponsor, school, volunteer, general, spam), sentiment (one of: positive, neutral, urgent), summary (one sentence under 20 words). If unsure use category general and sentiment neutral.\", messages: [ { role: 'user', content: ('Subject: ' + ($json.subject || '(none)') + ' | Message: ' + ($json.message || '(none)')).slice(0, 4000) } ] }) }}",
         "options": {
           "batching": {
             "batch": {
@@ -558,13 +563,12 @@
         "documentId": {
           "__rl": true,
           "mode": "id",
-          "value": "={{ $('Config').item.json.google_sheet_id }}"
+          "value": "={{ $('Config').first().json.google_sheet_id }}"
         },
         "sheetName": {
           "__rl": true,
-          "mode": "list",
-          "value": "={{ $('Config').item.json.tab_aggregates }}",
-          "cachedResultName": "={{ $('Config').item.json.tab_aggregates }}"
+          "mode": "name",
+          "value": "={{ $('Config').first().json.tab_aggregates }}"
         },
         "columns": {
           "mappingMode": "autoMapInputData",
@@ -597,13 +601,12 @@
         "documentId": {
           "__rl": true,
           "mode": "id",
-          "value": "={{ $('Config').item.json.google_sheet_id }}"
+          "value": "={{ $('Config').first().json.google_sheet_id }}"
         },
         "sheetName": {
           "__rl": true,
-          "mode": "list",
-          "value": "={{ $('Config').item.json.tab_leads }}",
-          "cachedResultName": "={{ $('Config').item.json.tab_leads }}"
+          "mode": "name",
+          "value": "={{ $('Config').first().json.tab_leads }}"
         },
         "columns": {
           "mappingMode": "autoMapInputData",
@@ -636,13 +639,12 @@
         "documentId": {
           "__rl": true,
           "mode": "id",
-          "value": "={{ $('Config').item.json.google_sheet_id }}"
+          "value": "={{ $('Config').first().json.google_sheet_id }}"
         },
         "sheetName": {
           "__rl": true,
-          "mode": "list",
-          "value": "={{ $('Config').item.json.tab_state }}",
-          "cachedResultName": "={{ $('Config').item.json.tab_state }}"
+          "mode": "name",
+          "value": "={{ $('Config').first().json.tab_state }}"
         },
         "options": {}
       },
@@ -668,13 +670,12 @@
         "documentId": {
           "__rl": true,
           "mode": "id",
-          "value": "={{ $('Config').item.json.google_sheet_id }}"
+          "value": "={{ $('Config').first().json.google_sheet_id }}"
         },
         "sheetName": {
           "__rl": true,
-          "mode": "list",
-          "value": "={{ $('Config').item.json.tab_leads }}",
-          "cachedResultName": "={{ $('Config').item.json.tab_leads }}"
+          "mode": "name",
+          "value": "={{ $('Config').first().json.tab_leads }}"
         },
         "options": {}
       },
@@ -740,13 +741,12 @@
         "documentId": {
           "__rl": true,
           "mode": "id",
-          "value": "={{ $('Config').item.json.google_sheet_id }}"
+          "value": "={{ $('Config').first().json.google_sheet_id }}"
         },
         "sheetName": {
           "__rl": true,
-          "mode": "list",
-          "value": "={{ $('Config').item.json.tab_state }}",
-          "cachedResultName": "={{ $('Config').item.json.tab_state }}"
+          "mode": "name",
+          "value": "={{ $('Config').first().json.tab_state }}"
         },
         "columns": {
           "mappingMode": "defineBelow",
@@ -755,7 +755,7 @@
           ],
           "value": {
             "key": "last_weekly_email_date",
-            "value": "={{ $('Build Weekly Summary').item.json.state_date }}"
+            "value": "={{ $('Build Weekly Summary').first().json.state_date }}"
           },
           "schema": [
             {
@@ -824,12 +824,12 @@
       "main": [
         [
           {
-            "node": "Fetch Registration CSV",
+            "node": "Fetch Registration Entries",
             "type": "main",
             "index": 0
           },
           {
-            "node": "Fetch Contact Us CSV",
+            "node": "Fetch Contact Us Entries",
             "type": "main",
             "index": 0
           },
@@ -841,18 +841,18 @@
         ]
       ]
     },
-    "Fetch Registration CSV": {
+    "Fetch Registration Entries": {
       "main": [
         [
           {
-            "node": "Parse Registration CSV",
+            "node": "Parse Registration Entries",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Parse Registration CSV": {
+    "Parse Registration Entries": {
       "main": [
         [
           {
@@ -890,7 +890,7 @@
         ]
       ]
     },
-    "Fetch Contact Us CSV": {
+    "Fetch Contact Us Entries": {
       "main": [
         [
           {
@@ -905,14 +905,14 @@
       "main": [
         [
           {
-            "node": "Parse Contact Us CSV",
+            "node": "Parse Contact Us Entries",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Parse Contact Us CSV": {
+    "Parse Contact Us Entries": {
       "main": [
         [
           {
