@@ -35,9 +35,8 @@
         },
         "sheetName": {
           "__rl": true,
-          "mode": "list",
-          "value": "={{ $env.GOOGLE_SHEET_TAB_ERRORS || 'errors' }}",
-          "cachedResultName": "={{ $env.GOOGLE_SHEET_TAB_ERRORS || 'errors' }}"
+          "mode": "name",
+          "value": "={{ $env.GOOGLE_SHEET_TAB_ERRORS || 'errors' }}"
         },
         "columns": {
           "mappingMode": "autoMapInputData",
