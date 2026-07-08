@@ -24,6 +24,12 @@ services:
       - N8N_SECURE_COOKIE=false
       # Enable the task runners the current n8n version expects.
       - N8N_RUNNERS_ENABLED=true
+      # Raise the Node.js heap for both the main process and the task runner.
+      # The one-time ~18k-entry backfill holds the full backlog plus the
+      # existing leads in memory at once, which overruns the default ~2 GB V8
+      # heap and crashes the run; 4 GB clears it with headroom on this host.
+      - NODE_OPTIONS=--max-old-space-size=4096
+      - N8N_RUNNERS_MAX_OLD_SPACE_SIZE=4096
       # Let node expressions read process env vars via {{ $env.NAME }}.
       - N8N_BLOCK_ENV_ACCESS_IN_NODE=false
       # Allow Code nodes and expressions to access the environment.

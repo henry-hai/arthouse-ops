@@ -37,5 +37,8 @@ inputs/*.xlsx
 data/*.csv
 data/*.txt
 
+# Google Sheet exports dropped in the repo root contain real names/emails
+*.csv
+
 # Built plugin zip is a build artifact, keep only the .php source
 wordpress-plugin/*.zip
