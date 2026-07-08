@@ -42,13 +42,20 @@ if [ -z "$ready" ]; then
 fi
 echo "    n8n is healthy."
 
-echo "==> Copying credential and workflow files into the container..."
-$COMPOSE cp ./workflows/credentials.json          "$SERVICE":/tmp/credentials.json
+echo "==> Copying workflow files into the container..."
 $COMPOSE cp ./workflows/arthouse-ops-errors.json  "$SERVICE":/tmp/arthouse-ops-errors.json
 $COMPOSE cp ./workflows/arthouse-ops.json         "$SERVICE":/tmp/arthouse-ops.json
 
-echo "==> Importing credentials..."
-$COMPOSE exec -T "$SERVICE" n8n import:credentials --input=/tmp/credentials.json
+# Import the credential scaffolds ONLY on first setup. Re-importing them would
+# overwrite completed OAuth logins (Google Sheets, Gmail) with the empty
+# scaffolds, so once the credentials exist we leave them untouched.
+if $COMPOSE exec -T "$SERVICE" n8n export:credentials --id=arthouseGoogleSheets --output=/tmp/cred-check.json >/dev/null 2>&1; then
+  echo "==> Credentials already present, skipping credential import to preserve your OAuth logins."
+else
+  echo "==> First-time setup: importing credential scaffolds..."
+  $COMPOSE cp ./workflows/credentials.json "$SERVICE":/tmp/credentials.json
+  $COMPOSE exec -T "$SERVICE" n8n import:credentials --input=/tmp/credentials.json
+fi
 
 echo "==> Importing the error workflow first (so the main workflow can link to it)..."
 $COMPOSE exec -T "$SERVICE" n8n import:workflow --input=/tmp/arthouse-ops-errors.json
