@@ -11,7 +11,8 @@ assembled by hand in the visual editor.
 ArtHouse Studio is a 501(c)(3) nonprofit in San Jose serving Bay Area Title I
 schools. Its WordPress site collects three forms through the Visual Form Builder
 Pro plugin, but the plugin's Entries page throws a fatal error, so staff have no
-working view of their own data. This project pulls the form exports, cleans them,
+working view of their own data. This project pulls the form entries through a
+custom WordPress plugin, cleans them,
 strips student PII, uses Claude Haiku 4.5 to categorize inbound messages, and
 writes everything to a Google Sheet that feeds a live dashboard and a weekly
 email summary.
@@ -22,10 +23,10 @@ Two triggers (a Manual Trigger for demos and a daily Schedule Trigger) feed one
 Config node that centralizes every setting and reads from environment variables.
 The flow then branches into three paths that share the same Google Sheet sinks:
 
-- **Registration path**: fetch the Registration CSV, parse it, strip student
+- **Registration path**: fetch the Registration entries from the connector plugin, parse them, strip student
   PII, aggregate enrollment and revenue by month and school, and write both the
   aggregates and the follow-up leads.
-- **Contact Us path**: fetch the Contact Us CSV, read the existing leads to skip
+- **Contact Us path**: fetch the Contact Us entries from the connector plugin, read the existing leads to skip
   anything already processed, parse, dedupe, classify each message with Claude,
   validate the result, aggregate by month and category, and write aggregates and
   leads.
@@ -42,10 +43,10 @@ errors tab.
 2. **Schedule Trigger** starts a run weekly on Sunday at 2:00 PM Pacific time.
 3. **Config** defines every setting (URLs, form ids, sheet id, tab names,
    category and sentiment lists, model, backfill flag, date ranges) from env.
-4. **Fetch Registration CSV** posts to the VFB Pro export with WordPress Basic
-   Auth and returns CSV text.
-5. **Parse Registration CSV** turns the CSV into one item per row, handling
-   quoted multi-line fields, embedded HTML in labels, and messy headers.
+4. **Fetch Registration Entries** GETs the connector plugin with WordPress Basic
+   Auth and returns entries as JSON, paginated over the full history.
+5. **Parse Registration Entries** flattens the plugin's JSON entries into one row
+   per entry, keyed by field label.
 6. **Strip PII from Registration** drops sensitive student fields and keeps only
    the whitelisted follow-up fields.
 7. **Aggregate Registration** groups rows by month and school and computes
@@ -54,10 +55,11 @@ errors tab.
    tab.
 9. **Append Registration Leads** writes the PII-stripped detail rows to the leads
    tab.
-10. **Fetch Contact Us CSV** posts to the VFB Pro export for the Contact Us form.
+10. **Fetch Contact Us Entries** GETs the connector plugin for the Contact Us
+    form, paginated.
 11. **Read Existing Leads** reads the leads tab to know what has already been
     processed.
-12. **Parse Contact Us CSV** parses the Contact Us export into rows.
+12. **Parse Contact Us Entries** flattens the plugin's JSON entries into rows.
 13. **Dedupe Against Sheet** normalizes each row and skips entries already in the
     leads tab (everything passes during a backfill).
 14. **Classify Message** calls the Anthropic API for each new message and asks
@@ -90,13 +92,21 @@ https://console.anthropic.com, sign up, add a payment method and credit under
 Billing, then under API Keys click Create Key. Copy the key (shown once) and
 paste it into `.env` as `ANTHROPIC_API_KEY`.
 
-### Step 2: Create a WordPress Application Password
+### Step 2: Install the connector plugin and create a WordPress Application Password
 
-The workflow downloads the form exports by logging in with a purpose-built
-credential. Sign in at https://arthousestudioca.org/wp-admin, open Users then
-Profile, scroll to Application Passwords, enter the name `n8n arthouse-ops`, click
-Add New Application Password, and copy the generated code (shown once). Put your
-WordPress username in `.env` as `WP_USERNAME` and the code as `WP_APP_PASSWORD`.
+The form plugin's own Entries screen throws a fatal error, so this project reads
+the entries through a small custom plugin in `wordpress-plugin/`. Install it once:
+in wp-admin go to Plugins, then Add New Plugin, then Upload Plugin, upload
+`wordpress-plugin/arthouse-ops-connector.zip` (zip the `.php` if the zip is not
+present), and Activate. It exposes read-only, authenticated REST endpoints that
+return the form entries as JSON, and it reads them straight from the database so
+it is unaffected by the broken Entries screen.
+
+The workflow authenticates to that plugin with a purpose-built credential. Sign in
+at https://arthousestudioca.org/wp-admin, open Users then Profile, scroll to
+Application Passwords, enter the name `n8n arthouse-ops`, click Add New Application
+Password, and copy the generated code (shown once). Put your WordPress username in
+`.env` as `WP_USERNAME` and the code as `WP_APP_PASSWORD`.
 
 ### Step 3: Confirm your Google Sheet and grab the Sheet ID
 
