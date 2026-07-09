@@ -1,7 +1,7 @@
 # arthouse-ops
 
 An n8n automation that unifies ArtHouse Studio's WordPress form submissions into
-a single Google Sheet with a Looker Studio dashboard on top, plus a Claude LLM
+a single Google Sheet with a custom lead-triage web app on top, plus a Claude LLM
 classifier that categorizes Contact Us messages. The entire workflow is defined
 as version-controlled JSON and imported into n8n through the CLI, rather than
 assembled by hand in the visual editor.
@@ -24,10 +24,10 @@ Config node that centralizes every setting and reads from environment variables.
 The flow then branches into three paths that all write to one Google Sheet. The
 leads tab is the single source of truth: every write is an upsert keyed on the
 entry id, so a run is idempotent and resumable. Re-running never duplicates a
-row, and an interrupted backfill can simply be run again to finish. The Looker
-Studio dashboard aggregates enrollment, revenue, and message counts directly
-from the leads tab, so the workflow keeps no separate summary table to fall out
-of sync.
+row, and an interrupted backfill can simply be run again to finish. A custom web
+app reads and aggregates enrollment, revenue, and message counts directly from
+the leads tab, so the workflow keeps no separate summary table to fall out of
+sync.
 
 - **Registration path**: fetch the Registration entries from the connector plugin, parse them, strip student
   PII, and upsert the follow-up leads into the leads tab keyed by entry id.
@@ -129,7 +129,8 @@ Fill in these values:
 - `WP_USERNAME` and `WP_APP_PASSWORD` from Step 2
 - `GOOGLE_SHEET_ID` from Step 3
 - `WEEKLY_SUMMARY_RECIPIENT` (the email that receives the Monday summary)
-- `LOOKER_DASHBOARD_URL` can stay as a placeholder until you build the dashboard
+- `LOOKER_DASHBOARD_URL` (the dashboard link in the weekly email) can stay a
+  placeholder until the dashboard web app is deployed
 - leave `BACKFILL_MODE=true` for the first run
 
 The real `.env` is gitignored and never committed.
@@ -242,16 +243,26 @@ goes missing, the node logs a warning rather than failing silently.
 
 ## Dashboard
 
-Looker Studio connects to the Google Sheet as a layer on top and does its own
-aggregation from the leads tab, so there is no separate summary table to keep in
-sync. Create a report at https://lookerstudio.google.com, add the leads tab as a
-data source, and add a month dimension derived from `entry_date`. From that one
-source build scorecards for total enrollment (count of registration rows),
-revenue (sum of `amount_usd`), and message count (count of contact rows); a time
-series of enrollment and revenue by month; bar charts for messages by `category`
-and enrollment by `school`; and a table of recent leads for follow-up. Share the
-report, copy its link, and paste it into `.env` as `LOOKER_DASHBOARD_URL` so the
-weekly email links to it.
+A custom web app in `dashboard/` sits on top of the Google Sheet as the
+leadership view. Rather than a point-and-click BI report, it is a small
+application (HTML/CSS/JS on a Google Apps Script backend) that reads the leads tab
+live and gives staff:
+
+- top-line KPIs (enrollment, revenue, message volume, and how many messages need
+  a human),
+- an interactive "action center" that filters the AI-surfaced sponsor, school,
+  volunteer, and urgent messages out of the ~18k so staff can read and follow up,
+- an enrollment-and-revenue trend and a category breakdown.
+
+It deploys as a Google Apps Script web app behind a server-enforced password gate,
+so the contact data is never on a public link, and it costs nothing to host and
+stays current from the same live sheet. See `dashboard/` for the code and
+deployment steps.
+
+The leads tab is also BI-tool-ready: a Looker Studio / Data Studio report can be
+layered on the same data (leads tab as a source, a month dimension on
+`entry_date`, then scorecards, a trend, category/school bars, and a table) if a
+stakeholder prefers one.
 
 ## Troubleshooting
 
