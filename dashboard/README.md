@@ -28,7 +28,8 @@ shared password, so the URL alone exposes nothing.
 
 - `Code.gs` — backend. Serves the page, reads the `leads` tab, computes the KPIs,
   quarterly trend, and category counts, and returns only the actionable messages
-  (never the full sheet to the browser). Holds the `ACCESS_PASSWORD` gate.
+  (never the full sheet to the browser). Reads the access password from Script
+  Properties, so no secret ever lives in the code.
 - `Index.html` — front-end. Login screen, then the dashboard, rendered from the
   data the backend returns.
 
@@ -36,9 +37,10 @@ shared password, so the URL alone exposes nothing.
 
 1. Open the `arthouse-ops` Google Sheet → **Extensions → Apps Script** (this binds
    the script to the sheet so it can read it directly).
-2. Replace the default `Code.gs` with `Code.gs` here, and set `ACCESS_PASSWORD` to
-   your own value (keep the committed file's placeholder — don't commit a real
-   password).
+2. Replace the default `Code.gs` with `Code.gs` here. The password is not in the
+   code — set it once in **Project Settings (gear) → Script Properties**: add a
+   property `ACCESS_PASSWORD` with your password as the value. Nothing secret is
+   ever committed.
 3. Add an HTML file named `Index` and paste `Index.html`.
 4. **Deploy → New deployment → Web app**: execute as **Me**, access **Anyone**
    (the password gate is what protects it). Authorize when prompted.
