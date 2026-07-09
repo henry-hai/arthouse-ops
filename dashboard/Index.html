@@ -96,6 +96,8 @@
   .login-card p{margin:0 0 18px;font-size:13px;color:var(--ink2);}
   .login-card input{width:100%;padding:12px 14px;border:1px solid var(--line);border-radius:10px;font-size:15px;margin-bottom:12px;}
   .login-card input:focus{outline:none;border-color:var(--teal);}
+  .login-card .showpw{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--ink2);margin:-2px 0 14px;cursor:pointer;}
+  .login-card .showpw input{width:auto;margin:0;padding:0;}
   .login-card button{width:100%;padding:12px;border:none;border-radius:10px;background:var(--teal);color:#fff;font-size:15px;font-weight:600;cursor:pointer;}
   .login-card button:hover{background:var(--teal-d);}
   .login-err{color:var(--red);font-size:13px;margin-top:10px;min-height:18px;}
@@ -110,6 +112,7 @@
     <h2>ArtHouse Operations</h2>
     <p>Enter the access password to view the dashboard.</p>
     <input id="pw" type="password" placeholder="Password" autocomplete="current-password">
+    <label class="showpw"><input type="checkbox" id="showpw"> Show password</label>
     <button id="pwbtn">View dashboard</button>
     <div class="login-err" id="pwerr"></div>
   </div>
@@ -194,6 +197,7 @@
   }
   document.getElementById('pwbtn').onclick = function(){ tryAuth(document.getElementById('pw').value, false); };
   document.getElementById('pw').addEventListener('keydown', function(e){ if(e.key === 'Enter') tryAuth(this.value, false); });
+  document.getElementById('showpw').addEventListener('change', function(){ document.getElementById('pw').type = this.checked ? 'text' : 'password'; });
   (function(){ var s=null; try{ s=sessionStorage.getItem('ah_pw'); }catch(e){} if(s){ tryAuth(s, true); } document.getElementById('pw').focus(); })();
 
   function onErr(e){

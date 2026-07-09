@@ -12,10 +12,16 @@ var LEADS_TAB = 'leads';
 var LEAD_CATEGORIES = ['sponsor', 'school', 'volunteer']; // the "real lead" buckets
 
 // ---- Access gate -----------------------------------------------------------
-// The app returns NO data unless the viewer supplies this password. Because the
-// check happens here on the server, someone with just the URL gets nothing.
-// CHANGE this before deploying, then share the URL + password only with Julie.
-var ACCESS_PASSWORD = 'CHANGE-ME-BEFORE-DEPLOY';
+// The app returns NO data unless the viewer supplies the password. The check
+// happens here on the server, so the URL alone gets nothing.
+//
+// The password is NOT stored in this code. It lives in Script Properties
+// (Apps Script's secret store), so it never appears in the source or on GitHub.
+// Set it once:  Project Settings (gear icon) -> Script Properties ->
+//   Property: ACCESS_PASSWORD   Value: <your password>
+function getAccessPassword_() {
+  return PropertiesService.getScriptProperties().getProperty('ACCESS_PASSWORD') || '';
+}
 
 /** Serve the web app. */
 function doGet() {
@@ -62,7 +68,8 @@ function quarterOf_(entryDate) {
  *   kpis, quarterly[], categories[], actionable[] (capped), meta.
  */
 function getDashboardData(pass) {
-  if (String(pass) !== ACCESS_PASSWORD) { return { error: 'unauthorized' }; }
+  var pw = getAccessPassword_();
+  if (!pw || String(pass).trim() !== String(pw).trim()) { return { error: 'unauthorized' }; }
   var rows = readLeads_();
 
   var enrollment = 0, revenue = 0, messages = 0, needHuman = 0;
