@@ -17,6 +17,18 @@ strips student PII, uses Claude Haiku 4.5 to categorize inbound messages, and
 writes everything to a Google Sheet that feeds a live dashboard and a weekly
 email summary.
 
+![The leadership dashboard: enrollment, revenue, message volume, and the messages that still need a person. Contact details, enrollment and revenue are redacted.](screenshots/1-dashboard.png)
+
+The Action Center is the point of the whole pipeline. Claude classifies roughly
+18,000 inbound messages, and the app surfaces the ~145 that a human should
+actually answer. Contact details and the client's enrollment and revenue figures
+are redacted in these screenshots, not in the app.
+
+![Enrollment and revenue by quarter on a dual axis, and message volume by category.](screenshots/2-charts.png)
+
+Nine years of enrollment and revenue the nonprofit could not see before, because
+the form plugin's own Entries screen crashes on the real row counts.
+
 ## Two implementations
 
 The pipeline was first built in n8n and ran in production there. It is now a
@@ -79,6 +91,8 @@ service no longer restarts on its own and both workflow exports are marked
 inactive, so starting Docker does not bring back a second process writing to the
 same sheet. Nothing is deleted, and `docker compose up` still brings it back
 deliberately.
+
+![The original n8n workflow, 21 nodes across three paths.](screenshots/3-n8n-workflow.png)
 
 `workflows/arthouse-ops.json` is the original, 21 nodes, and
 `workflows/arthouse-ops-errors.json` is its error workflow. Both are kept, along
