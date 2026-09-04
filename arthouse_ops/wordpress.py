@@ -50,11 +50,18 @@ def _retry_http(exc):
     return None
 
 
+# The host runs SiteGround's anti bot system, which answers a default
+# python-requests user agent with a 202 and a CAPTCHA page instead of JSON.
+# Naming the client honestly gets through it and is the polite thing to send.
+USER_AGENT = "arthouse-ops-pipeline/1.0 (+https://github.com/henry-hai/arthouse-ops)"
+
+
 class Client:
     def __init__(self, config, session=None):
         self.config = config
         self.session = session or requests.Session()
         self.session.auth = (config.wp_username, config.wp_app_password)
+        self.session.headers.update({"User-Agent": USER_AGENT, "Accept": "application/json"})
 
     def _page(self, form_id, offset):
         def send():
