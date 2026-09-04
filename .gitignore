@@ -47,3 +47,6 @@ wordpress-plugin/*.zip
 __pycache__/
 *.pyc
 .pytest_cache/
+
+# Session handoff notes, local only
+HANDOFF.md
