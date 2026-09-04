@@ -50,3 +50,6 @@ __pycache__/
 
 # Session handoff notes, local only
 HANDOFF.md
+
+# Editor and assistant tooling config, not part of the published project
+.claude/
