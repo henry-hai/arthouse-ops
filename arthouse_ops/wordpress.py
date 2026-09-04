@@ -34,6 +34,12 @@ class NotJson(Exception):
 def _retry_http(exc):
     if isinstance(exc, (requests.ConnectionError, requests.Timeout)):
         return retry.Retryable(exc)
+    # A 200 carrying something other than JSON is a block page, an error page
+    # or a maintenance page, and those clear. The first scheduled run died on
+    # one and the next run a few minutes later was fine, so giving up on the
+    # first attempt cost a whole run for nothing.
+    if isinstance(exc, NotJson):
+        return retry.Retryable(exc)
     if isinstance(exc, requests.HTTPError) and exc.response is not None:
         if exc.response.status_code in RETRYABLE_STATUS:
             header = exc.response.headers.get("Retry-After")

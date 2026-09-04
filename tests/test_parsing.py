@@ -84,3 +84,16 @@ def test_a_non_json_response_reports_what_it_actually_was():
     assert error.status_code == 200
     assert "text/html" in str(error)
     assert "Access denied" in str(error)
+
+
+def test_a_non_json_response_is_retried():
+    """It killed a scheduled run once and cleared by itself minutes later."""
+    import requests
+
+    from arthouse_ops import wordpress
+
+    response = requests.Response()
+    response.status_code = 200
+    response.headers["Content-Type"] = "text/html"
+    response._content = b"<html>blocked</html>"
+    assert wordpress._retry_http(wordpress.NotJson(response)) is not None
