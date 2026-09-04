@@ -28,6 +28,33 @@ log = logs.get("sheets")
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 RETRYABLE_STATUS = {403, 429, 500, 502, 503, 504}
 
+# Columns Sheets should parse into a real number or date. Everything else is
+# text and is written defensively, see _cell below.
+TYPED_COLUMNS = ("entry_id", "entry_date", "amount_usd")
+
+# A cell whose text starts with one of these is a formula, not a value. The
+# name, school and summary columns carry text from a public web form, so a
+# submission of =HYPERLINK("...") would otherwise become a live formula in a
+# sheet the staff open. A leading apostrophe forces Sheets to treat the value
+# as text and is not displayed.
+FORMULA_STARTERS = ("=", "+", "-", "@", "\t", "\r")
+
+
+def _cell(header, value):
+    """One cell, ready for a USER_ENTERED write.
+
+    The write has to be USER_ENTERED rather than RAW so that entry_id lands as
+    a number and entry_date as a date, which is what the eighteen thousand rows
+    already in the tab are and what Looker infers the column type from. RAW
+    would write text and split the column across two types.
+
+    USER_ENTERED is also what makes the escaping below necessary.
+    """
+    if header in TYPED_COLUMNS:
+        return value
+    text = "" if value is None else str(value)
+    return "'" + text if text.startswith(FORMULA_STARTERS) else text
+
 
 def _column_letter(count):
     """A1 letter for the last of `count` columns. The sheet has 12, so A..L."""
@@ -135,7 +162,7 @@ class Sheet:
         last = _column_letter(len(LEADS_HEADERS))
         updates, appends = [], []
         for lead in leads:
-            values = [lead.get(column, "") for column in LEADS_HEADERS]
+            values = [_cell(column, lead.get(column, "")) for column in LEADS_HEADERS]
             row_number = existing_index.get(str(lead.get("entry_id", "")).strip())
             if row_number:
                 updates.append({
@@ -149,7 +176,7 @@ class Sheet:
             self._call(
                 self.values.batchUpdate(
                     spreadsheetId=self.config.google_sheet_id,
-                    body={"valueInputOption": "RAW", "data": updates},
+                    body={"valueInputOption": "USER_ENTERED", "data": updates},
                 ),
                 op="values.batchUpdate", rows=len(updates),
             )
@@ -159,7 +186,7 @@ class Sheet:
                 self.values.append(
                     spreadsheetId=self.config.google_sheet_id,
                     range=f"{self.config.tab_leads}!A1:{last}",
-                    valueInputOption="RAW",
+                    valueInputOption="USER_ENTERED",
                     insertDataOption="INSERT_ROWS",
                     body={"values": [values for _, values in appends]},
                 ),
@@ -183,9 +210,10 @@ class Sheet:
             self.values.append(
                 spreadsheetId=self.config.google_sheet_id,
                 range=f"{self.config.tab_errors}!A1:{last}",
-                valueInputOption="RAW",
+                valueInputOption="USER_ENTERED",
                 insertDataOption="INSERT_ROWS",
-                body={"values": [[row.get(c, "") for c in ERROR_HEADERS] for row in rows]},
+                body={"values": [[_cell(c, row.get(c, "")) for c in ERROR_HEADERS]
+                                 for row in rows]},
             ),
             op="values.append", tab=self.config.tab_errors, rows=len(rows),
         )

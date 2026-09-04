@@ -42,3 +42,35 @@ def test_a_quota_403_is_retried():
 
 def test_a_bad_request_is_not_retried():
     assert sheets._retry_sheets(http_error(400)) is None
+
+
+# --- cell encoding ---
+
+def test_typed_columns_pass_through_unchanged():
+    """entry_id must land as a number and entry_date as a date, which is what
+    the rows already in the tab are and what Looker types the column from."""
+    assert sheets._cell("entry_id", "22801") == "22801"
+    assert sheets._cell("entry_date", "2026-08-17 20:51:49") == "2026-08-17 20:51:49"
+    assert sheets._cell("amount_usd", 245.0) == 245.0
+
+
+@pytest.mark.parametrize("value", [
+    '=HYPERLINK("https://evil.test","click")',
+    "+1+1",
+    "-1+1",
+    "@import",
+])
+def test_a_formula_in_free_text_is_neutralised(value):
+    """name, school and summary carry text from a public web form, and the
+    write is USER_ENTERED, so a leading = would become a live formula."""
+    assert sheets._cell("name", value) == "'" + value
+
+
+def test_ordinary_text_is_untouched():
+    for value in ["Rivermont Elementary PTA", "sponsor", "[classification failed]",
+                  "Asks about signup.", ""]:
+        assert sheets._cell("summary", value) == value
+
+
+def test_none_becomes_an_empty_string():
+    assert sheets._cell("school", None) == ""
