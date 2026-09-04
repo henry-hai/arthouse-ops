@@ -74,6 +74,12 @@ what makes running both at once safe.
 
 ### The n8n workflow
 
+**Retired September 4 2026.** It ran in production until then. The Compose
+service no longer restarts on its own and both workflow exports are marked
+inactive, so starting Docker does not bring back a second process writing to the
+same sheet. Nothing is deleted, and `docker compose up` still brings it back
+deliberately.
+
 `workflows/arthouse-ops.json` is the original, 21 nodes, and
 `workflows/arthouse-ops-errors.json` is its error workflow. Both are kept, along
 with `scripts/import-workflow.sh`, because they ran in production and because a

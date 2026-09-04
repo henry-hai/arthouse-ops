@@ -11,7 +11,13 @@ services:
   n8n:
     image: docker.n8n.io/n8nio/n8n
     container_name: arthouse-ops-n8n
-    restart: unless-stopped
+    # Retired September 4 2026. The pipeline runs in Python on scheduled GitHub
+    # Actions now, see .github/workflows/pipeline.yml. This was "unless-stopped",
+    # which brought n8n back on its own every time Docker Desktop started. It is
+    # "no" so that starting Docker does not quietly resurrect a second thing
+    # writing to the same Google Sheet. Bring it up deliberately with
+    # "docker compose up" if you ever need the old implementation running.
+    restart: "no"
     ports:
       # host:container. Open http://localhost:5678 in your browser.
       - "5678:5678"
