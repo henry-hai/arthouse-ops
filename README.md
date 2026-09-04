@@ -1,10 +1,10 @@
 # arthouse-ops
 
-An n8n automation that unifies ArtHouse Studio's WordPress form submissions into
-a single Google Sheet with a custom lead-triage web app on top, plus a Claude LLM
-classifier that categorizes Contact Us messages. The entire workflow is defined
-as version-controlled JSON and imported into n8n through the CLI, rather than
-assembled by hand in the visual editor.
+A lead pipeline that unifies ArtHouse Studio's WordPress form submissions into a
+single Google Sheet with a custom lead-triage web app on top, plus a Claude LLM
+classifier that categorizes Contact Us messages. The pipeline is a Python
+service in `arthouse_ops/`, run on a schedule by GitHub Actions. It started as
+an n8n workflow, which is still in this repo and described below.
 
 ## What it does
 
@@ -16,6 +16,71 @@ custom WordPress plugin, cleans them,
 strips student PII, uses Claude Haiku 4.5 to categorize inbound messages, and
 writes everything to a Google Sheet that feeds a live dashboard and a weekly
 email summary.
+
+## Two implementations
+
+The pipeline was first built in n8n and ran in production there. It is now a
+Python service, and the n8n export stays in `workflows/` as the reference
+implementation and as the before half of the migration.
+
+The rewrite was not about n8n being wrong. It ran, and it is the reason the
+shape of the problem was understood well enough to rewrite. The reason to move
+is that the guarantees the pipeline needs were checkboxes on a node rather than
+code anyone could read, test, or reason about. In Python they are:
+
+- **Idempotent.** Every write to the leads tab is an upsert keyed on the entry
+  id. Re-running writes nothing new. A Contact Us entry that already carries a
+  successful classification is never sent to the model a second time.
+- **Explicit retry and backoff.** `retry.py` does exponential backoff with
+  jitter on the Claude API and on the Sheets writes, honours a `Retry-After`
+  header when the server sends one, and only retries failures worth retrying. A
+  bad API key fails on the first attempt instead of the fifth.
+- **Resumable.** Classified rows are written in batches as the run goes, not in
+  one write at the end. A run that dies at entry 900 of 1200 has committed the
+  first 875, and the next run starts at 876.
+- **Answerable.** One JSON object per line on stdout, every line tagged with the
+  run id and, where it applies, the entry id. `what happened to entry 22801` is
+  a grep.
+- **Tested.** 92 tests over the parsing, PII, classification and idempotency
+  logic, including a set that runs against real recorded payloads on a machine
+  that has them.
+
+### Running it
+
+```bash
+pip install -r requirements.txt
+
+# Fetch and classify against the real APIs, write nothing, need no Google
+# credential. Good for checking the setup.
+python -m arthouse_ops --dry-run --limit 5
+
+# A real run.
+python -m arthouse_ops
+
+# One path only, and a ceiling on how many entries get classified.
+python -m arthouse_ops --source contact_us --limit 200
+```
+
+Settings come from `.env`, the same file and the same names the n8n workflow
+used, so both implementations read one configuration while they run side by
+side. Google credentials are the exception: n8n held a browser OAuth session,
+and a scheduled job cannot, so the Python pipeline uses a service account with
+the sheet shared to it.
+
+`.github/workflows/pipeline.yml` runs it every Sunday at 14:00 UTC, the slot the
+n8n schedule trigger used. Because every write is an upsert on the entry id, the
+second implementation to touch the sheet on a given day writes nothing, which is
+what makes running both at once safe.
+
+### The n8n workflow
+
+`workflows/arthouse-ops.json` is the original, 21 nodes, and
+`workflows/arthouse-ops-errors.json` is its error workflow. Both are kept, along
+with `scripts/import-workflow.sh`, because they ran in production and because a
+JSON export is the clearest statement of what the Python service had to
+reproduce. The sections below describe that workflow. The Python pipeline
+follows the same shape, minus the Gmail digest, which is out of scope for the
+rewrite and still runs on n8n.
 
 ## Architecture
 
@@ -201,7 +266,7 @@ JSON response.
 Paste these header rows into row 1 of each tab, one name per cell.
 
 **leads** (the single source of truth: one row per submission, upserted by
-`entry_id`; drives both follow-up and the dashboard)
+`entry_id`, and drives both follow-up and the dashboard)
 
 ```
 entry_id,entry_date,source,name,email,school,grade,homeroom_teacher,amount_usd,category,sentiment,summary
@@ -225,8 +290,8 @@ or guardian values. On the contact side they hold the sender's values and
 
 ## Privacy and PII handling
 
-Registration submissions contain sensitive student information. The Strip PII
-node enforces a hard boundary and never passes these fields downstream:
+Registration submissions contain sensitive student information. The pipeline
+enforces a hard boundary and never passes these fields downstream:
 
 - Student's Name
 - Date of Birth
@@ -239,7 +304,25 @@ node enforces a hard boundary and never passes these fields downstream:
 Only these non-sensitive fields are kept for follow-up: Entry ID, Entry Date,
 Parent or Guardian Name, Parent Email, school name, Grade, the Register and Pay
 amount, and Homeroom Teacher. If the export layout changes and an expected column
-goes missing, the node logs a warning rather than failing silently.
+goes missing, the pipeline logs a warning rather than failing silently. A lead
+row is built fresh from those named fields rather than copied and pruned, so a
+new sensitive column added to the form in WordPress cannot leak by default.
+
+Dropping columns by header is not sufficient on its own, which a test over real
+recorded entries showed. A parent had used the school-name box as a notes box
+and written a sentence containing their child's first name, so a student name
+reached a column bound for the sheet through a field that was allowed. The
+Python pipeline adds a scrub after the field mapping: a short descriptive field
+is blanked if it contains a value from a sensitive column, or if it is long
+enough to be a note rather than a name.
+
+The rule is containment rather than equality, because a value that exactly
+matches a sensitive one came from the allowed column legitimately. Parents
+routinely name themselves as their own emergency contact, and blanking on
+equality would throw away the contact name on a large share of rows for no gain.
+Parent name and email are exempt for the same reason: they are the point of the
+row, and they overlap with the emergency-contact and authorized-adult columns
+constantly and harmlessly.
 
 ## Dashboard
 
