@@ -1,0 +1,51 @@
+name: weekly digest
+
+# Off by default. It runs on the schedule below only when the repository
+# variable SUMMARY_ENABLED is set to true, and the job itself checks the send
+# day and the once per day mark before sending anything.
+#
+# 15:00 UTC is an hour after the pipeline, so the summary reads a sheet that
+# has already been updated.
+on:
+  schedule:
+    - cron: "0 15 * * 0"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Build the summary and print it, send nothing"
+        type: boolean
+        default: true
+      force:
+        description: "Ignore the send day and the once per day mark"
+        type: boolean
+        default: false
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: send the weekly summary
+        env:
+          SUMMARY_ENABLED: ${{ vars.SUMMARY_ENABLED }}
+          SUMMARY_SEND_DAY: ${{ vars.SUMMARY_SEND_DAY }}
+          WEEKLY_SUMMARY_RECIPIENT: ${{ secrets.WEEKLY_SUMMARY_RECIPIENT }}
+          LOOKER_DASHBOARD_URL: ${{ vars.LOOKER_DASHBOARD_URL }}
+          GMAIL_SENDER: ${{ secrets.GMAIL_SENDER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+          GOOGLE_SHEET_TAB_STATE: ${{ vars.GOOGLE_SHEET_TAB_STATE }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          WP_USERNAME: ${{ secrets.WP_USERNAME }}
+          WP_APP_PASSWORD: ${{ secrets.WP_APP_PASSWORD }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          python -m arthouse_ops.send_digest \
+            ${{ inputs.dry_run && '--dry-run' || '' }} \
+            ${{ inputs.force && '--force' || '' }}
