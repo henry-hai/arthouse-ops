@@ -29,16 +29,24 @@ client_secret*.json
 # Local secrets backup folder, never commit
 secrets/
 
-# Real form-data exports may contain student PII, never commit them
-inputs/*.csv
-inputs/*.txt
-inputs/*.xls
-inputs/*.xlsx
-data/*.csv
-data/*.txt
+# Real form-data exports contain student and family PII, never commit them.
+# Everything dropped in inputs/ is treated as real data by default.
+inputs/*
+!inputs/.gitkeep
+data/*
+!data/.gitkeep
 
 # Google Sheet exports dropped in the repo root contain real names/emails
 *.csv
 
 # Built plugin zip is a build artifact, keep only the .php source
 wordpress-plugin/*.zip
+
+# Local virtualenv for the Python pipeline
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Session handoff notes, local only
+HANDOFF.md

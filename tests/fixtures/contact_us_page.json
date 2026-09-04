@@ -1,0 +1,61 @@
+{
+  "form": 3,
+  "total": 4,
+  "spam_total": 0,
+  "legit_total": 4,
+  "returned": 4,
+  "limit": 200,
+  "offset": 0,
+  "field_map": {"51": "Name", "52": "Email", "53": "Phone", "54": "Subject", "55": "Submit", "56": "Company / School", "57": "Captcha"},
+  "entries": [
+    {
+      "entry_id": "22801",
+      "seq_num": "72",
+      "date": "2026-08-17 20:51:49",
+      "is_spam": 0,
+      "fields": {
+        "Name": "Dana Whitfield",
+        "Email": "dana@example-pta.org",
+        "Phone": "+15550101234",
+        "Company / School": "Rivermont Elementary PTA",
+        "Subject": "<p>We would love to partner with your studio for our spring auction.</p>\n<p>Could you donate a class voucher? Our event reaches 700 families.</p>"
+      }
+    },
+    {
+      "entry_id": "22802",
+      "seq_num": "73",
+      "date": "2026-08-18 09:14:02",
+      "is_spam": 0,
+      "fields": {
+        "Name": "Renée Ortiz",
+        "Email": "renee.ortiz@example.com",
+        "Phone": "",
+        "Company / School": "",
+        "Subject": "<p>Hi<br />\nAre your programs only available through schools or can we sign up directly? We&#039;re homeschooling.</p>"
+      }
+    },
+    {
+      "entry_id": "22803",
+      "seq_num": "74",
+      "date": "2026-08-19 16:40:00",
+      "is_spam": 0,
+      "fields": {
+        "Name": "Sam Booker",
+        "Email": "sam@example-cleaning.biz",
+        "Phone": "+15550109876",
+        "Company / School": "Example Cleaning Solutions",
+        "Subject": "<p>Hi,</p>\n<p>We&#039;ve supported several K-12 schools with after-hours cleaning that meets CDC guidelines.</p>\n<p>May I give you more information?</p>"
+      }
+    },
+    {
+      "entry_id": "22804",
+      "seq_num": "75",
+      "date": "2026-08-20 11:02:31",
+      "is_spam": 0,
+      "fields": {
+        "Name": "Priya Raman",
+        "Email": "priya.raman@example.com"
+      }
+    }
+  ]
+}
