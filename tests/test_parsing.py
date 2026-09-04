@@ -66,3 +66,21 @@ def test_missing_fields_become_empty_strings(contact_us_page):
 ])
 def test_parse_currency(value, expected):
     assert parsing.parse_currency(value) == expected
+
+
+def test_a_non_json_response_reports_what_it_actually_was():
+    """The JSON decoder's message never names the cause. A blocked datacenter
+    IP, a login page and a maintenance page all decode identically, so the
+    status, content type and body travel with the error."""
+    import requests
+
+    from arthouse_ops import wordpress
+
+    response = requests.Response()
+    response.status_code = 200
+    response.headers["Content-Type"] = "text/html"
+    response._content = b"<html><title>Access denied</title></html>"
+    error = wordpress.NotJson(response)
+    assert error.status_code == 200
+    assert "text/html" in str(error)
+    assert "Access denied" in str(error)

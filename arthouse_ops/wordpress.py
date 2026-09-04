@@ -14,6 +14,23 @@ log = logs.get("wordpress")
 RETRYABLE_STATUS = {408, 429, 500, 502, 503, 504}
 
 
+class NotJson(Exception):
+    """The endpoint answered, but not with JSON.
+
+    Worth its own error because the cause is never in the JSON decoder's
+    message. A host that blocks datacenter IPs, a login page, a maintenance
+    page and a WAF challenge all look identical until you see the body, so the
+    status, content type and first part of the body travel with the error.
+    """
+
+    def __init__(self, response):
+        self.status_code = response.status_code
+        self.content_type = response.headers.get("Content-Type", "")
+        self.snippet = " ".join(response.text[:300].split())
+        super().__init__(
+            f"expected JSON, got {self.status_code} {self.content_type}: {self.snippet}")
+
+
 def _retry_http(exc):
     if isinstance(exc, (requests.ConnectionError, requests.Timeout)):
         return retry.Retryable(exc)
@@ -46,7 +63,10 @@ class Client:
                 timeout=60,
             )
             response.raise_for_status()
-            return response.json()
+            try:
+                return response.json()
+            except ValueError:
+                raise NotJson(response) from None
 
         return retry.call(send, classify=_retry_http, op="GET entries",
                           form=form_id, offset=offset)
