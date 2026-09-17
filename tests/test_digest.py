@@ -96,9 +96,9 @@ def test_an_unparseable_date_is_skipped_not_fatal():
 def test_the_summary_reports_its_numbers():
     stats = digest.summarize([lead("1", "registration", 1, amount_usd="100")], SUNDAY)
     subject, html = digest.render(stats)
-    assert "ArtHouse weekly summary" in subject
+    assert "ArtHouse Weekly Summary" in subject
     assert "$100.00" in html
-    assert "1</strong> new form entries" in html
+    assert "1 New Form Entries this Week" in html
 
 
 def test_a_quiet_week_says_so():
@@ -108,8 +108,8 @@ def test_a_quiet_week_says_so():
 
 def test_the_dashboard_link_is_optional():
     stats = digest.summarize([], SUNDAY)
-    assert "Open the dashboard" not in digest.render(stats)[1]
-    assert "Open the dashboard" in digest.render(stats, "https://example.test/d")[1]
+    assert "Open the Dashboard" not in digest.render(stats)[1]
+    assert "Open the Dashboard" in digest.render(stats, "https://example.test/d")[1]
 
 
 def test_form_text_cannot_inject_html():
