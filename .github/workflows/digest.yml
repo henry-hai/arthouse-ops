@@ -4,15 +4,15 @@ name: weekly digest
 # is set to true, and the job itself checks the send day and the once per day
 # mark before sending anything.
 #
-# 16:00 UTC is 9:00 AM Pacific in summer, which is the earliest the summary
-# should land, and two hours after the pipeline so it reads a sheet that has
+# 17:00 UTC is 9:00 AM Pacific in winter, which is the earliest the summary
+# should land, and three hours after the pipeline so it reads a sheet that has
 # already been updated. GitHub delays scheduled runs under load, historically by
 # up to 90 minutes here, so the real arrival is 9:00 to 10:30 AM and never
-# earlier. Cron is UTC year round, so this becomes 8:00 AM Pacific when daylight
-# saving ends. Change it to "0 17 * * 0" in November to hold 9:00 AM.
+# earlier. Cron is UTC year round, so switch back to "0 16 * * 0" when daylight
+# saving starts in March to hold 9:00 AM.
 on:
   schedule:
-    - cron: "0 16 * * 0"
+    - cron: "0 17 * * 0"
   workflow_dispatch:
     inputs:
       dry_run:
