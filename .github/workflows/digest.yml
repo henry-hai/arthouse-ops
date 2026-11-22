@@ -53,3 +53,18 @@ jobs:
           python -m arthouse_ops.send_digest \
             ${{ inputs.dry_run && '--dry-run' || '' }} \
             ${{ inputs.force && '--force' || '' }}
+
+  # Same keepalive as in pipeline.yml, so either weekly run restarts the 60 day
+  # inactivity clock for both schedules.
+  keepalive:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: keep both scheduled workflows enabled
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh workflow enable pipeline.yml
+          gh workflow enable digest.yml

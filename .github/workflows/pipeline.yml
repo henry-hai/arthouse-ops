@@ -45,3 +45,21 @@ jobs:
           python -m arthouse_ops \
             ${{ inputs.dry_run && '--dry-run' || '' }} \
             ${{ inputs.limit && format('--limit {0}', inputs.limit) || '' }}
+
+  # GitHub turns off scheduled workflows in a public repo after 60 days without a
+  # push, and it did exactly that to this one on November 22 2026. Re-enabling a
+  # workflow through the API restarts that clock, so each weekly run keeps both
+  # schedules alive without needing a commit. Both workflows carry this job, so
+  # either one can bring the other back.
+  keepalive:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: keep both scheduled workflows enabled
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh workflow enable pipeline.yml
+          gh workflow enable digest.yml
